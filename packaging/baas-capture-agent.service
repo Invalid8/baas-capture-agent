@@ -1,0 +1,12 @@
+[Unit]
+Description=BAAS fingerprint capture agent (127.0.0.1)
+After=graphical-session.target
+
+[Service]
+EnvironmentFile=-/etc/baas-capture-agent.conf
+ExecStart=/usr/bin/baas-capture-agent
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

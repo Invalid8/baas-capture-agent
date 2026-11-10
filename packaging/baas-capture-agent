@@ -1,0 +1,2 @@
+#!/bin/sh
+exec env PYTHONPATH=/usr/lib/baas-capture-agent /usr/bin/python3 -m baas_capture_agent "$@"

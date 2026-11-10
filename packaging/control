@@ -1,0 +1,12 @@
+Package: baas-capture-agent
+Version: @VERSION@
+Architecture: all
+Maintainer: BAAS project <baas@localhost>
+Depends: python3 (>= 3.10), python3-gi, gir1.2-fprint-2.0, libfprint-2-2
+Section: utils
+Priority: optional
+Homepage: https://baas-app-kappa.vercel.app
+Description: Fingerprint capture service for the BAAS web kiosk
+ Reads a fingerprint image from a DigitalPersona U.are.U 4500 (libfprint
+ uru4000 driver) and hands it to the BAAS kiosk in the browser as a PNG.
+ Listens on 127.0.0.1 only and answers only the configured kiosk origins.
