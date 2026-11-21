@@ -110,7 +110,10 @@ def make_handler(agent: CaptureAgent, allowed_origins: tuple[str, ...]):
             self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
-            self.wfile.write(data)
+            try:
+                self.wfile.write(data)
+            except (BrokenPipeError, ConnectionResetError):
+                print(f"{self.path}: client left before the {status.value} reply was sent", flush=True)
 
         def _refuse_foreign_origin(self) -> bool:
             origin = self.headers.get("Origin")
@@ -149,13 +152,16 @@ def make_handler(agent: CaptureAgent, allowed_origins: tuple[str, ...]):
                 return
             if self.path == "/capture":
                 try:
-                    self._json(HTTPStatus.OK, agent.capture())
+                    capture = agent.capture()
                 except Exception as exc:
                     for kind, status in _ERRORS:
                         if isinstance(exc, kind):
+                            print(f"capture: {status.value} {exc}", flush=True)
                             self._json(status, {"detail": str(exc)})
                             return
                     raise
+                print(f"capture: {capture['width']}x{capture['height']}", flush=True)
+                self._json(HTTPStatus.OK, capture)
             elif self.path == "/cancel":
                 self._json(HTTPStatus.OK, {"cancelled": agent.cancel()})
             else:
