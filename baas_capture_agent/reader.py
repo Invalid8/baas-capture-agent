@@ -54,6 +54,9 @@ class LibfprintReader:
 
     def _capture_device(self):
         self._context.enumerate()
+        main_context = self._glib.MainContext.default()
+        while main_context.iteration(False):
+            pass
         for device in self._context.get_devices():
             if device.has_feature(self._fprint.DeviceFeature.CAPTURE):
                 return device
@@ -77,7 +80,10 @@ class LibfprintReader:
             reason.append("cancelled" if stop.wait(timeout) else "timeout")
             cancellable.cancel()
 
-        device.open_sync(None)
+        try:
+            device.open_sync(None)
+        except self._glib.Error as exc:
+            raise ReaderError(exc.message) from exc
         watcher = threading.Thread(target=watch, daemon=True)
         watcher.start()
         try:

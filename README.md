@@ -14,10 +14,10 @@ BAAS backend.
 ## Install (Ubuntu 22.04+ / Pop!_OS / Debian 12+)
 
 ```bash
-sudo apt install ./baas-capture-agent_0.1.0_all.deb
+sudo apt install ./baas-capture-agent_0.1.1_all.deb
 ```
 
-`apt` also installs libfprint and its udev rules, so the logged-in user can open
+`apt` also installs libfprint, and the package adds a udev rule so the logged-in user can open
 the reader without root. The service starts straight away for anyone logged in,
 and for every user at their next login.
 

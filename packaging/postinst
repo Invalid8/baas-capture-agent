@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 if [ "$1" = "configure" ]; then
+    udevadm control --reload-rules >/dev/null 2>&1 || true
+    udevadm trigger --subsystem-match=usb --attr-match=idVendor=05ba --action=change >/dev/null 2>&1 || true
     systemctl --global enable baas-capture-agent.service >/dev/null 2>&1 || true
     for user in $(loginctl list-users --no-legend 2>/dev/null | awk '{print $2}'); do
         systemctl --user -M "$user@" daemon-reload >/dev/null 2>&1 || true
