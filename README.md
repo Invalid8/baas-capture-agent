@@ -10,10 +10,24 @@ The agent is a small local service. Your web app calls it on
 up to your app or your server; the agent never matches, stores or sends prints
 anywhere.
 
+- **Same image on both systems:** every image leaves the agent as 8-bit grey at
+  500 ppi, so a print enrolled on Windows can be matched against one taken on Linux.
+- **Bad presses are asked again:** a blank glass, a smudge left behind or a
+  press too light to read is not sent; the agent waits for a better press inside
+  the same request.
+- **Live events:** your page can show "hold still" the moment a finger lands
+  and "press a little firmer" when a press is rejected.
+- **Nothing to configure:** a new website asks once on screen, "Allow … to use
+  the fingerprint reader?", and the answer is remembered.
+- **Check page:** open `http://127.0.0.1:7501` in a browser to see the reader,
+  what is wrong if it isn't working, a test capture, the allowed sites and
+  the last presses.
+- **Panel icon** on Windows and Linux: green when the reader is ready.
+
 | | Linux | Windows |
 |---|---|---|
 | How it reads the 4500 | [libfprint](https://fprint.freedesktop.org/) (`uru4000` driver) | Windows Biometric Framework (the 4500's WBF driver) |
-| Package | `.deb` (Ubuntu 22.04+, Debian 12+, Pop!_OS) | `.exe` |
+| Package | `.deb` (Ubuntu 22.04+, Debian 12+, Pop!_OS) | setup `.exe` |
 | Status | Working, used with a real 4500 | **Being verified** on a real PC: run `baas-probe.exe` (below) |
 
 It was written for BAAS, a biometric ATM project, and works for any web app that
@@ -57,8 +71,11 @@ administrators). It tells you, step by step:
 
 If any step fails, the message says why.
 
-`baas-capture-agent.exe` runs the same service as on Linux. It runs in a console
-window for now; a Windows service and installer are planned.
+Then run **`baas-capture-agent-setup.exe`**. It installs the agent, starts it at
+every sign-in with the administrator rights Windows needs for raw images (a
+scheduled task, so there is no prompt each time), starts it now and opens the
+check page. The fingerprint icon sits in the notification area; right-click it to
+open the check page or quit. Uninstall from Settings > Apps.
 
 ## Using it from a web page
 
@@ -77,6 +94,20 @@ const { image, width, height } = await res.json(); // image: base64 PNG
 | GET | `/status` | `{connected, device, driver, capturing, version}` |
 | POST | `/capture` | Waits for a finger, then `{image, width, height, device}` (image is a base64 PNG, 8-bit grey) |
 | POST | `/cancel` | Stops a capture in progress: `{cancelled}` |
+| GET | `/events` | Server-sent events while capturing (below) |
+| GET | `/` | The check page |
+
+`/capture` also returns `ppi` (always 500), `attempts` and
+`quality: {ink, coverage}` (the share of dark ridge pixels and of the image area
+that holds a print).
+
+```js
+const events = new EventSource("http://127.0.0.1:7501/events");
+events.onmessage = (m) => {
+  const e = JSON.parse(m.data);
+  // waiting · finger_on · reading · press_again {reason: blank|faint, say} · done · timeout · cancelled · error
+};
+```
 
 Errors are JSON, `{"detail": "..."}`:
 
@@ -92,27 +123,35 @@ network. Choose **Allow**.
 
 ## Which sites may use it
 
-The agent only answers web pages whose origin it allows. `http://localhost` and
-`http://127.0.0.1` on any port are always allowed, for development. Add your
-site's origin, comma-separated:
+The first time a website calls the agent, a window on the PC asks
+**"Allow … to use the fingerprint reader?"**. Allow is remembered; Don't allow
+holds until the agent restarts. If no window can be shown, the site waits on the
+check page under "Sites that may use the reader" with an **Allow** button, and you
+can remove a site there too. `http://localhost` and `http://127.0.0.1` on any port
+are always allowed, for development.
 
-- Linux: `BAAS_AGENT_ORIGINS` in `/etc/baas-capture-agent.conf`, then
-  `systemctl --user restart baas-capture-agent`.
-- Anywhere: `--origins https://your.app,https://other.app` on the command line.
+To allow sites without asking, list them (comma-separated) in
+`BAAS_AGENT_ORIGINS` in `/etc/baas-capture-agent.conf` on Linux, or pass
+`--origins https://your.app` on the command line.
 
 | Setting | Default | Meaning |
 |---|---|---|
 | `BAAS_AGENT_PORT` / `--port` | `7501` | Local port |
-| `BAAS_AGENT_ORIGINS` / `--origins` | `https://baas-app-kappa.vercel.app` | Allowed origins |
+| `BAAS_AGENT_ORIGINS` / `--origins` | empty | Sites allowed without asking |
 | `BAAS_AGENT_TIMEOUT` / `--timeout` | `30` | Seconds to wait for a finger |
 
 ## Privacy and security
 
 - Listens on `127.0.0.1` only; nothing on the network can reach it.
-- Answers only allowed origins, so an unknown website can't take a print.
-- Keeps no images and makes no outgoing connections.
+- Answers only sites someone allowed on this PC, so an unknown website can't
+  take a print; only the check page itself can change the list.
+- Keeps no images and makes no outgoing connections. The capture log
+  (`capture.log` in the agent's settings folder: `~/.config/baas-capture-agent`
+  or `%APPDATA%\baas-capture-agent`) holds times, sites and quality numbers only.
 
 ## Troubleshooting
+
+Start with the check page, `http://127.0.0.1:7501`: its Checks say what is wrong.
 
 - **Linux, `connected: false`:** check `lsusb` shows `05ba:000a`, then unplug and
   replug the reader. Logs: `journalctl --user -u baas-capture-agent -f`.
@@ -132,10 +171,8 @@ packaging/build-deb.sh                        # dist/baas-capture-agent_<version
 GitHub Actions runs the tests on Linux and Windows, builds both `.exe` files and the
 `.deb`, and publishes them on a `v*` tag.
 
-## Roadmap
+## Status
 
-- Windows service and installer
-- One image standard (500 ppi) on both systems
-- Rejecting blank, smudged or too-faint presses before they are sent
-- Live events (finger on, lift your finger) and a self-check page
-- Approve a new site from a prompt on the PC instead of editing settings
+The thresholds for "blank" and "too faint" are first estimates and will be tuned
+on real presses. The Windows reader works on paper and in CI (the Windows
+Biometric Framework answers), but has not yet captured from a real 4500.
