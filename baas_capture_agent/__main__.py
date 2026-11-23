@@ -28,9 +28,13 @@ def config_dir() -> Path:
 
 def open_reader():
     if sys.platform == "win32":
+        from baas_capture_agent.reader import UnavailableReader
         from baas_capture_agent.winbio import WinBioReader
 
-        return WinBioReader()
+        try:
+            return WinBioReader()
+        except OSError:
+            return UnavailableReader("Windows fingerprint support is missing: install the U.are.U WBF driver")
     try:
         from baas_capture_agent.reader import LibfprintReader
 

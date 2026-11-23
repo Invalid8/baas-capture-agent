@@ -43,6 +43,19 @@ class Reader(Protocol):
     def capture(self, stop: threading.Event, timeout: float, on_finger: OnFinger = None) -> Capture: ...
 
 
+class UnavailableReader:
+    """Stands in when the system has no way to reach a reader, so the agent and its check page still run."""
+
+    def __init__(self, reason: str):
+        self.reason = reason
+
+    def status(self) -> ReaderStatus:
+        return ReaderStatus(connected=False)
+
+    def capture(self, stop: threading.Event, timeout: float, on_finger: OnFinger = None) -> Capture:
+        raise NoReaderError(self.reason)
+
+
 class LibfprintReader:
     """U.are.U 4500 (libfprint 'uru4000' driver) through GObject introspection."""
 

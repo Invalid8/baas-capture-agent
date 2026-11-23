@@ -138,6 +138,18 @@ class ServerTest(unittest.TestCase):
         self.assertFalse(body["capturing"])
         self.assertEqual(response.getheader("Access-Control-Allow-Origin"), KIOSK)
 
+    def test_a_pc_without_fingerprint_support_still_runs_the_agent(self):
+        from baas_capture_agent.reader import UnavailableReader
+
+        self.start(UnavailableReader("Windows fingerprint support is missing: install the U.are.U WBF driver"))
+
+        _, status = self.request("GET", "/status")
+        response, body = self.request("POST", "/capture")
+
+        self.assertFalse(status["connected"])
+        self.assertEqual(response.status, 503)
+        self.assertIn("WBF driver", body["detail"])
+
     def test_status_without_reader(self):
         self.start(FakeReader(connected=False))
 
