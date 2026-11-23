@@ -1,5 +1,5 @@
 [Unit]
-Description=BAAS fingerprint capture agent (127.0.0.1)
+Description=Fingerprint capture agent for web pages (127.0.0.1)
 After=graphical-session.target
 
 [Service]

@@ -1,6 +1,9 @@
 import argparse
 import os
+import subprocess
 import sys
+import threading
+import webbrowser
 from pathlib import Path
 
 from baas_capture_agent import __version__, prompt
@@ -56,14 +59,30 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args(argv)
 
+    url = f"http://{HOST}:{args.port}"
     folder = config_dir()
     reader = open_reader()
     origins = OriginStore(folder / "sites.json", parse_origins(args.origins), prompt.ask)
     agent = CaptureAgent(reader, args.timeout, EventHub(), CaptureLog(folder / "capture.log"))
-    server = make_server(agent, args.port, origins)
-    print(f"baas-capture-agent {__version__} on http://{HOST}:{args.port} (open it in a browser to check the reader)", flush=True)
     try:
-        server.serve_forever()
+        server = make_server(agent, args.port, origins)
+    except OSError:
+        if sys.platform == "win32":
+            webbrowser.open(url)
+        sys.exit(f"The agent is already running on {url}")
+    print(f"baas-capture-agent {__version__} on {url} (open it in a browser to check the reader)", flush=True)
+    try:
+        if sys.platform == "win32":
+            from baas_capture_agent import tray
+
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            tray.run(agent, url, server.shutdown)
+        else:
+            panel = subprocess.Popen([sys.executable, "-m", "baas_capture_agent.tray_linux", url])
+            try:
+                server.serve_forever()
+            finally:
+                panel.terminate()
     except KeyboardInterrupt:
         pass
     finally:

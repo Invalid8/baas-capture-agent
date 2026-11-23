@@ -3,10 +3,13 @@ Version: @VERSION@
 Architecture: all
 Maintainer: BAAS project <baas@localhost>
 Depends: python3 (>= 3.10), python3-gi, gir1.2-fprint-2.0, libfprint-2-2
+Recommends: zenity, gir1.2-ayatanaappindicator3-0.1, gir1.2-gtk-3.0
 Section: utils
 Priority: optional
-Homepage: https://baas-app-kappa.vercel.app
-Description: Fingerprint capture service for the BAAS web kiosk
- Reads a fingerprint image from a DigitalPersona U.are.U 4500 (libfprint
- uru4000 driver) and hands it to the BAAS kiosk in the browser as a PNG.
- Listens on 127.0.0.1 only and answers only the configured kiosk origins.
+Homepage: https://github.com/Invalid8/baas-capture-agent
+Description: Use a U.are.U 4500 fingerprint reader from web pages
+ Local service on 127.0.0.1:7501 that reads a fingerprint image from a
+ DigitalPersona / HID U.are.U 4500 (libfprint uru4000 driver) and hands it to
+ web pages as a 500 ppi PNG. Blank or faint presses are asked again, a new
+ site must be allowed once on screen, and http://127.0.0.1:7501 shows a
+ self-check page with a test capture.
