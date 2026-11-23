@@ -23,6 +23,6 @@ def encode_grayscale(pixels: bytes, width: int, height: int) -> bytes:
     return (
         _SIGNATURE
         + _chunk(b"IHDR", header)
-        + _chunk(b"IDAT", zlib.compress(rows, 9))
+        + _chunk(b"IDAT", zlib.compress(rows, 6))
         + _chunk(b"IEND", b"")
     )

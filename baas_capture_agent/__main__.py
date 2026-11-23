@@ -46,11 +46,15 @@ def open_reader():
     if sys.platform == "win32":
         return windows_reader()
     try:
-        from baas_capture_agent.reader import LibfprintReader
+        import gi
 
-        return LibfprintReader()
+        gi.require_version("FPrint", "2.0")
     except (ImportError, ValueError) as exc:
         sys.exit(f"libfprint is not available ({exc}). Install gir1.2-fprint-2.0 and libfprint-2-2.")
+    from baas_capture_agent.reader import LibfprintReader
+    from baas_capture_agent.worker import WorkerReader
+
+    return WorkerReader(LibfprintReader)
 
 
 def main(argv: list[str] | None = None) -> None:

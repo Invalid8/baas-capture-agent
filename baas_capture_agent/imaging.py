@@ -51,31 +51,30 @@ def to_standard(image: Image, ppi: float | None) -> Image:
     return Image(width, height, bytes(out))
 
 
-def _median(pixels: bytes) -> int:
-    counts = [0] * 256
-    for p in pixels:
-        counts[p] += 1
-    half, seen = len(pixels) / 2, 0
-    for value, n in enumerate(counts):
-        seen += n
-        if seen >= half:
-            return value
-    return 255
+DARK = bytes(range(128))
+
+
+def _dark_count(pixels: bytes) -> int:
+    return len(pixels) - len(pixels.translate(None, DARK))
+
+
+def _block_spread(pixels: bytes, width: int, top: int, left: int) -> float:
+    values = [pixels[(top + dy) * width + left + dx] for dy in range(0, BLOCK, 2) for dx in range(0, BLOCK, 2)]
+    mean = sum(values) / len(values)
+    return (sum((v - mean) ** 2 for v in values) / len(values)) ** 0.5
 
 
 def assess(image: Image) -> Assessment:
     pixels, width, height = image.pixels, image.width, image.height
-    light_background = _median(pixels) >= 128
-    ink = sum(1 for p in pixels if (p < 128) == light_background) / len(pixels)
+    dark = _dark_count(pixels)
+    light_background = dark <= len(pixels) / 2
+    ink = (dark if light_background else len(pixels) - dark) / len(pixels)
 
     blocks = busy = 0
     for top in range(0, height - BLOCK + 1, BLOCK):
         for left in range(0, width - BLOCK + 1, BLOCK):
-            values = [pixels[(top + dy) * width + left + dx] for dy in range(BLOCK) for dx in range(BLOCK)]
-            mean = sum(values) / len(values)
-            spread = (sum((v - mean) ** 2 for v in values) / len(values)) ** 0.5
             blocks += 1
-            busy += spread >= BLOCK_CONTRAST
+            busy += _block_spread(pixels, width, top, left) >= BLOCK_CONTRAST
     coverage = busy / blocks if blocks else 0.0
     return Assessment(ink=round(ink, 4), coverage=round(coverage, 3), problem=verdict(ink, coverage))
 

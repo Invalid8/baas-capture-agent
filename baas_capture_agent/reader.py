@@ -1,5 +1,3 @@
-import os
-import sys
 import threading
 from dataclasses import dataclass
 from typing import Callable, Protocol
@@ -21,6 +19,10 @@ class CaptureCancelled(ReaderError):
 
 class CaptureTimeout(ReaderError):
     pass
+
+
+class NeedsFreshStart(ReaderError):
+    """libfprint must be started afresh: the reader was replugged, or its generic heat timer is running out."""
 
 
 class BadPress(ReaderError):
@@ -86,13 +88,6 @@ class FirstConnected:
         return found[0].capture(stop, timeout, on_finger)
 
 
-def restart_agent(reason: str) -> None:
-    """libfprint keeps a replugged reader as a dead device and can't make a second context in one
-    process, so the agent starts itself again (about a second) to see the reader afresh."""
-    print(f"restarting: {reason}", flush=True)
-    os.execv(sys.executable, [sys.executable, "-m", "baas_capture_agent", *sys.argv[1:]])
-
-
 class LibfprintReader:
     """U.are.U 4500 (libfprint 'uru4000' driver) through GObject introspection."""
 
@@ -113,7 +108,7 @@ class LibfprintReader:
         if not plugged:
             return None
         if self._plugged and plugged != self._plugged:
-            restart_agent("the fingerprint reader was plugged back in")
+            raise NeedsFreshStart("the fingerprint reader was plugged back in")
         self._plugged = plugged
         self._context.enumerate()
         main_context = self._glib.MainContext.default()
@@ -123,6 +118,11 @@ class LibfprintReader:
             if device.has_feature(self._fprint.DeviceFeature.CAPTURE):
                 return device
         return None
+
+    def _error(self, exc) -> ReaderError:
+        if exc.matches(self._fprint.DeviceError.quark(), self._fprint.DeviceError.TOO_HOT):
+            return NeedsFreshStart(exc.message)
+        return ReaderError(exc.message)
 
     def status(self) -> ReaderStatus:
         device = self._capture_device()
@@ -134,6 +134,8 @@ class LibfprintReader:
         device = self._capture_device()
         if device is None:
             raise NoReaderError("Fingerprint reader not connected")
+        if device.get_temperature() != self._fprint.Temperature.COLD:
+            raise NeedsFreshStart("libfprint's generic heat timer is running out")
 
         cancellable = self._gio.Cancellable()
         reason: list[str] = []
@@ -145,7 +147,7 @@ class LibfprintReader:
         try:
             device.open_sync(None)
         except self._glib.Error as exc:
-            raise ReaderError(exc.message) from exc
+            raise self._error(exc) from exc
         flags = self._fprint.FingerStatusFlags
         told: set[str] = set()
 
@@ -170,7 +172,7 @@ class LibfprintReader:
                 if reason and reason[0] == "timeout":
                     raise CaptureTimeout("No finger detected") from exc
                 raise CaptureCancelled("Capture cancelled") from exc
-            raise ReaderError(exc.message) from exc
+            raise self._error(exc) from exc
         finally:
             device.disconnect(handler)
             stop.set()

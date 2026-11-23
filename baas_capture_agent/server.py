@@ -27,7 +27,8 @@ from baas_capture_agent.reader import (
 HOST = "127.0.0.1"
 RETRY_PAUSE = 0.8
 HEARTBEAT = 15.0
-SAY = {"blank": "Nothing was read. Place your finger flat on the glass.", "faint": "Too faint. Press a little firmer and cover more of the glass."}
+ERROR_PAUSE = 1.0
+SAY = {"blank": "Place your finger flat on the glass.", "faint": "Too light. Press a little firmer."}
 
 
 class ReaderBusy(Exception):
@@ -65,6 +66,8 @@ class CaptureAgent:
             kind = {CaptureCancelled: "cancelled", CaptureTimeout: "timeout"}.get(type(exc), "error")
             self.events.publish(kind, detail=str(exc))
             self.log.add(site, kind, detail=str(exc))
+            if kind == "error":
+                time.sleep(ERROR_PAUSE)
             raise
         finally:
             self._attempt = None
