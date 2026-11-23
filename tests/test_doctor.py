@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from baas_capture_agent.doctor import device_node, parse_pnputil, usb_readers, windows_checks
+from baas_capture_agent.doctor import device_node, parse_pnputil, plugged_readers, usb_readers, windows_checks
 
 PNPUTIL = """Microsoft PnP Utility
 
@@ -71,6 +71,21 @@ class LinuxDoctorTest(unittest.TestCase):
         [reader] = usb_readers(root)
         self.assertEqual(reader.name, "1-4")
         self.assertEqual(device_node(reader), Path("/dev/bus/usb/001/048"))
+        self.assertEqual(plugged_readers(root), ("/dev/bus/usb/001/048",))
+
+    def test_a_replug_gives_a_new_address_and_unplugging_leaves_nothing(self):
+        root = Path(tempfile.mkdtemp())
+        (root / "1-4").mkdir()
+        (root / "1-4" / "idVendor").write_text("05ba\n")
+        (root / "1-4" / "busnum").write_text("1\n")
+        (root / "1-4" / "devnum").write_text("48\n")
+        before = plugged_readers(root)
+        (root / "1-4" / "devnum").write_text("49\n")
+        self.assertNotEqual(plugged_readers(root), before)
+        for f in (root / "1-4").iterdir():
+            f.unlink()
+        (root / "1-4").rmdir()
+        self.assertEqual(plugged_readers(root), ())
 
 
 if __name__ == "__main__":

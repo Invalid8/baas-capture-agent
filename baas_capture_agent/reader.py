@@ -1,3 +1,5 @@
+import os
+import sys
 import threading
 from dataclasses import dataclass
 from typing import Callable, Protocol
@@ -84,6 +86,13 @@ class FirstConnected:
         return found[0].capture(stop, timeout, on_finger)
 
 
+def restart_agent(reason: str) -> None:
+    """libfprint keeps a replugged reader as a dead device and can't make a second context in one
+    process, so the agent starts itself again (about a second) to see the reader afresh."""
+    print(f"restarting: {reason}", flush=True)
+    os.execv(sys.executable, [sys.executable, "-m", "baas_capture_agent", *sys.argv[1:]])
+
+
 class LibfprintReader:
     """U.are.U 4500 (libfprint 'uru4000' driver) through GObject introspection."""
 
@@ -95,8 +104,17 @@ class LibfprintReader:
 
         self._fprint, self._gio, self._glib = FPrint, Gio, GLib
         self._context = FPrint.Context()
+        self._plugged: tuple[str, ...] = ()
 
     def _capture_device(self):
+        from baas_capture_agent.doctor import plugged_readers
+
+        plugged = plugged_readers()
+        if not plugged:
+            return None
+        if self._plugged and plugged != self._plugged:
+            restart_agent("the fingerprint reader was plugged back in")
+        self._plugged = plugged
         self._context.enumerate()
         main_context = self._glib.MainContext.default()
         while main_context.iteration(False):
