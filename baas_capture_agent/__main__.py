@@ -1,17 +1,26 @@
 import argparse
 import os
 import sys
+from pathlib import Path
 
-from baas_capture_agent import __version__
+from baas_capture_agent import __version__, prompt
+from baas_capture_agent.capturelog import CaptureLog
+from baas_capture_agent.events import EventHub
+from baas_capture_agent.origins import OriginStore
 from baas_capture_agent.server import HOST, CaptureAgent, make_server
 
 DEFAULT_PORT = 7501
-DEFAULT_ORIGINS = "https://baas-app-kappa.vercel.app"
 DEFAULT_TIMEOUT = 30.0
 
 
 def parse_origins(value: str) -> tuple[str, ...]:
     return tuple(o.strip().rstrip("/") for o in value.split(",") if o.strip())
+
+
+def config_dir() -> Path:
+    if sys.platform == "win32":
+        return Path(os.environ.get("APPDATA", Path.home())) / "baas-capture-agent"
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "baas-capture-agent"
 
 
 def open_reader():
@@ -30,13 +39,13 @@ def open_reader():
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="baas-capture-agent",
-        description="Local fingerprint capture service for the BAAS kiosk (127.0.0.1 only).",
+        description="Local fingerprint capture service for web pages (127.0.0.1 only).",
     )
     parser.add_argument("--port", type=int, default=int(os.environ.get("BAAS_AGENT_PORT", DEFAULT_PORT)))
     parser.add_argument(
         "--origins",
-        default=os.environ.get("BAAS_AGENT_ORIGINS", DEFAULT_ORIGINS),
-        help="Comma-separated kiosk origins allowed to call the agent",
+        default=os.environ.get("BAAS_AGENT_ORIGINS", ""),
+        help="Extra sites allowed without asking, comma-separated",
     )
     parser.add_argument(
         "--timeout",
@@ -47,11 +56,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args(argv)
 
+    folder = config_dir()
     reader = open_reader()
-
-    origins = parse_origins(args.origins)
-    server = make_server(CaptureAgent(reader, args.timeout), args.port, origins)
-    print(f"baas-capture-agent {__version__} on http://{HOST}:{args.port} for {', '.join(origins)}", flush=True)
+    origins = OriginStore(folder / "sites.json", parse_origins(args.origins), prompt.ask)
+    agent = CaptureAgent(reader, args.timeout, EventHub(), CaptureLog(folder / "capture.log"))
+    server = make_server(agent, args.port, origins)
+    print(f"baas-capture-agent {__version__} on http://{HOST}:{args.port} (open it in a browser to check the reader)", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

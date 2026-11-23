@@ -1,6 +1,8 @@
 import threading
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Callable, Protocol
+
+OnFinger = Callable[[], None] | None
 
 
 class ReaderError(Exception):
@@ -38,7 +40,7 @@ class ReaderStatus:
 class Reader(Protocol):
     def status(self) -> ReaderStatus: ...
 
-    def capture(self, stop: threading.Event, timeout: float) -> Capture: ...
+    def capture(self, stop: threading.Event, timeout: float, on_finger: OnFinger = None) -> Capture: ...
 
 
 class LibfprintReader:
@@ -69,7 +71,7 @@ class LibfprintReader:
             return ReaderStatus(connected=False)
         return ReaderStatus(connected=True, device=device.get_name(), driver=device.get_driver())
 
-    def capture(self, stop: threading.Event, timeout: float) -> Capture:
+    def capture(self, stop: threading.Event, timeout: float, on_finger: OnFinger = None) -> Capture:
         device = self._capture_device()
         if device is None:
             raise NoReaderError("Fingerprint reader not connected")
@@ -85,8 +87,13 @@ class LibfprintReader:
             device.open_sync(None)
         except self._glib.Error as exc:
             raise ReaderError(exc.message) from exc
+        def finger_status(dev, _spec):
+            if on_finger and dev.get_finger_status() & self._fprint.FingerStatusFlags.PRESENT:
+                on_finger()
+
         watcher = threading.Thread(target=watch, daemon=True)
         watcher.start()
+        handler = device.connect("notify::finger-status", finger_status)
         try:
             image = device.capture_sync(True, cancellable)
         except self._glib.Error as exc:
@@ -96,6 +103,7 @@ class LibfprintReader:
                 raise CaptureCancelled("Capture cancelled") from exc
             raise ReaderError(exc.message) from exc
         finally:
+            device.disconnect(handler)
             stop.set()
             device.close_sync(None)
 

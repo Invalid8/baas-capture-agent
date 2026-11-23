@@ -7,7 +7,13 @@ import time
 import unittest
 import zlib
 
-from baas_capture_agent.__main__ import parse_origins
+import tempfile
+from pathlib import Path
+
+from baas_capture_agent.capturelog import CaptureLog
+from baas_capture_agent.events import EventHub
+from baas_capture_agent.imaging import Image
+from baas_capture_agent.origins import OriginStore
 from baas_capture_agent.png import encode_grayscale
 from baas_capture_agent.reader import (
     Capture,
@@ -16,11 +22,14 @@ from baas_capture_agent.reader import (
     NoReaderError,
     ReaderStatus,
 )
-from baas_capture_agent.server import CaptureAgent, make_server, origin_allowed
+from baas_capture_agent.server import CaptureAgent, make_server
+from tests.test_imaging import ridges
 
 KIOSK = "https://baas-app-kappa.vercel.app"
-WIDTH, HEIGHT = 4, 3
-PIXELS = bytes(range(WIDTH * HEIGHT))
+TOKEN = "page-token"
+PRINT: Image = ridges(64, 64)
+BLANK = Image(64, 64, bytes([235] * 64 * 64))
+WIDTH, HEIGHT, PIXELS = PRINT.width, PRINT.height, PRINT.pixels
 
 
 def decode_png(data: bytes) -> tuple[int, int, bytes]:
@@ -44,10 +53,12 @@ def decode_png(data: bytes) -> tuple[int, int, bytes]:
 
 
 class FakeReader:
-    def __init__(self, connected=True, finger_after=0.0, error=None):
+    def __init__(self, connected=True, finger_after=0.0, error=None, images=(PRINT,), ppi=None):
         self.connected = connected
         self.finger_after = finger_after
         self.error = error
+        self.images = list(images)
+        self.ppi = ppi
         self.started = threading.Event()
 
     def status(self):
@@ -55,7 +66,7 @@ class FakeReader:
             return ReaderStatus(connected=False)
         return ReaderStatus(connected=True, device="Digital Persona U.are.U 4000/4000B/4500", driver="uru4000")
 
-    def capture(self, stop, timeout):
+    def capture(self, stop, timeout, on_finger=None):
         if not self.connected:
             raise NoReaderError("Fingerprint reader not connected")
         self.started.set()
@@ -67,7 +78,10 @@ class FakeReader:
             raise CaptureTimeout("No finger detected")
         if stop.wait(self.finger_after):
             raise CaptureCancelled("Capture cancelled")
-        return Capture(WIDTH, HEIGHT, PIXELS, "Digital Persona U.are.U 4000/4000B/4500")
+        if on_finger:
+            on_finger()
+        image = self.images.pop(0) if len(self.images) > 1 else self.images[0]
+        return Capture(image.width, image.height, image.pixels, "Digital Persona U.are.U 4000/4000B/4500", self.ppi)
 
 
 class PngTest(unittest.TestCase):
@@ -83,26 +97,13 @@ class PngTest(unittest.TestCase):
             encode_grayscale(b"", 0, 0)
 
 
-class OriginTest(unittest.TestCase):
-    def test_configured_kiosk_is_allowed(self):
-        self.assertTrue(origin_allowed(KIOSK, (KIOSK,)))
-
-    def test_local_development_on_any_port_is_allowed(self):
-        for origin in ("http://localhost:8080", "http://127.0.0.1:54321", "http://localhost"):
-            self.assertTrue(origin_allowed(origin, (KIOSK,)), origin)
-
-    def test_other_sites_are_refused(self):
-        for origin in (None, "", "https://evil.example", "https://localhost.evil.example", "https://localhost:8080"):
-            self.assertFalse(origin_allowed(origin, (KIOSK,)), origin)
-
-    def test_origins_are_parsed_from_config(self):
-        self.assertEqual(parse_origins(" https://a.example/, https://b.example ,"), ("https://a.example", "https://b.example"))
-
-
 class ServerTest(unittest.TestCase):
-    def start(self, reader, timeout=2.0):
-        agent = CaptureAgent(reader, timeout)
-        server = make_server(agent, 0, (KIOSK,))
+    def start(self, reader, timeout=2.0, prompt=None):
+        folder = Path(tempfile.mkdtemp())
+        self.events = EventHub()
+        agent = CaptureAgent(reader, timeout, self.events, CaptureLog(folder / "capture.log"))
+        self.origins = OriginStore(folder / "sites.json", (), prompt)
+        server = make_server(agent, 0, self.origins, TOKEN)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.server_close)
         self.addCleanup(server.shutdown)
@@ -110,16 +111,20 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(server.server_address[0], "127.0.0.1")
         return agent
 
-    def request(self, method, path, origin=KIOSK, headers=None):
+    def request(self, method, path, origin=KIOSK, headers=None, body=None):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
         all_headers = dict(headers or {})
         if origin:
             all_headers["Origin"] = origin
-        conn.request(method, path, headers=all_headers)
+        data = json.dumps(body).encode() if body is not None else None
+        if data:
+            all_headers["Content-Type"] = "application/json"
+        conn.request(method, path, body=data, headers=all_headers)
         response = conn.getresponse()
-        body = response.read()
+        raw = response.read()
         conn.close()
-        return response, json.loads(body) if body else None
+        kind = response.getheader("Content-Type") or ""
+        return response, json.loads(raw) if raw and "json" in kind else raw
 
     def test_status_reports_the_reader(self):
         self.start(FakeReader())
@@ -146,8 +151,42 @@ class ServerTest(unittest.TestCase):
         response, body = self.request("POST", "/capture")
 
         self.assertEqual(response.status, 200)
-        self.assertEqual((body["width"], body["height"]), (WIDTH, HEIGHT))
+        self.assertEqual((body["width"], body["height"], body["ppi"], body["attempts"]), (WIDTH, HEIGHT, 500.0, 1))
         self.assertEqual(decode_png(base64.b64decode(body["image"])), (WIDTH, HEIGHT, PIXELS))
+        self.assertGreater(body["quality"]["coverage"], 0.5)
+
+    def test_capture_is_scaled_to_500_ppi(self):
+        self.start(FakeReader(images=(ridges(128, 128),), ppi=512.0))
+
+        _, body = self.request("POST", "/capture")
+
+        self.assertEqual((body["width"], body["height"]), (125, 125))
+
+    def test_a_blank_press_is_asked_again_inside_the_same_capture(self):
+        self.start(FakeReader(images=(BLANK, PRINT)), timeout=5)
+        listener = self.events.subscribe()
+
+        response, body = self.request("POST", "/capture")
+
+        self.assertEqual((response.status, body["attempts"]), (200, 2))
+        kinds = []
+        while not listener.empty():
+            kinds.append(listener.get_nowait())
+        self.assertEqual(
+            [e["event"] for e in kinds],
+            ["waiting", "finger_on", "reading", "press_again", "waiting", "finger_on", "reading", "done"],
+        )
+        self.assertEqual(kinds[3]["reason"], "blank")
+        _, log = self.request("GET", "/log")
+        self.assertEqual([e["result"] for e in log], ["ok", "rejected-blank"])
+        self.assertEqual(log[0]["site"], KIOSK)
+
+    def test_only_blank_presses_end_in_a_timeout(self):
+        self.start(FakeReader(images=(BLANK,)), timeout=1.2)
+
+        response, body = self.request("POST", "/capture")
+
+        self.assertEqual((response.status, body["detail"]), (408, "No finger detected"))
 
     def test_capture_without_reader_is_503(self):
         self.start(FakeReader(connected=False))
@@ -204,13 +243,79 @@ class ServerTest(unittest.TestCase):
 
         self.assertFalse(body["cancelled"])
 
-    def test_foreign_site_is_refused(self):
-        self.start(FakeReader())
+    def test_a_new_site_is_refused_when_the_person_says_no(self):
+        asked = []
+        self.start(FakeReader(), prompt=lambda origin: asked.append(origin) or False)
 
         response, _ = self.request("POST", "/capture", origin="https://evil.example")
+        again, _ = self.request("POST", "/capture", origin="https://evil.example")
 
-        self.assertEqual(response.status, 403)
+        self.assertEqual((response.status, again.status), (403, 403))
         self.assertIsNone(response.getheader("Access-Control-Allow-Origin"))
+        self.assertEqual(asked, ["https://evil.example"])
+
+    def test_a_new_site_is_asked_once_then_remembered(self):
+        asked = []
+        self.start(FakeReader(), prompt=lambda origin: asked.append(origin) or True)
+
+        first, _ = self.request("GET", "/status", origin="https://clinic.example")
+        second, _ = self.request("GET", "/status", origin="https://clinic.example")
+
+        self.assertEqual((first.status, second.status), (200, 200))
+        self.assertEqual(first.getheader("Access-Control-Allow-Origin"), "https://clinic.example")
+        self.assertEqual(asked, ["https://clinic.example"])
+        self.assertIn("https://clinic.example", self.origins.snapshot()["approved"])
+
+    def test_without_a_prompt_window_the_site_waits_for_the_page(self):
+        self.start(FakeReader(), prompt=lambda origin: None)
+
+        refused, _ = self.request("GET", "/status", origin="https://clinic.example")
+        _, sites = self.request("GET", "/sites", origin=None)
+        _, after = self.request(
+            "POST", "/sites/approve", origin=None, headers={"X-Agent-Token": TOKEN}, body={"site": "https://clinic.example"}
+        )
+        allowed, _ = self.request("GET", "/status", origin="https://clinic.example")
+
+        self.assertEqual((refused.status, allowed.status), (403, 200))
+        self.assertEqual(sites["waiting"], ["https://clinic.example"])
+        self.assertEqual((after["waiting"], after["approved"]), ([], ["https://clinic.example"]))
+
+    def test_sites_can_only_be_changed_with_the_page_token(self):
+        self.start(FakeReader())
+
+        for headers in ({}, {"X-Agent-Token": "guess"}):
+            response, _ = self.request("POST", "/sites/approve", headers=headers, body={"site": "https://evil.example"})
+            self.assertEqual(response.status, 403)
+        response, _ = self.request(
+            "POST", "/sites/approve", origin="https://evil.example", headers={"X-Agent-Token": TOKEN},
+            body={"site": "https://evil.example"},
+        )
+        self.assertEqual(response.status, 403)
+        self.assertEqual(self.origins.snapshot()["approved"], [])
+
+    def test_the_self_check_page_is_served_with_its_token(self):
+        self.start(FakeReader())
+
+        response, html = self.request("GET", "/", origin=None)
+
+        self.assertEqual(response.status, 200)
+        self.assertIn(b"Test the reader", html)
+        self.assertIn(TOKEN.encode(), html)
+
+    def test_events_stream_to_an_allowed_site(self):
+        self.start(FakeReader())
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        conn.request("GET", "/events", headers={"Origin": KIOSK})
+        response = conn.getresponse()
+        self.assertEqual(response.getheader("Content-Type"), "text/event-stream")
+        self.assertEqual(response.getheader("Access-Control-Allow-Origin"), KIOSK)
+        response.fp.readline()
+        response.fp.readline()
+        time.sleep(0.1)
+        self.events.publish("waiting", attempt=1)
+        line = response.fp.readline().decode()
+        conn.close()
+        self.assertEqual(json.loads(line.removeprefix("data: ")), {"event": "waiting", "attempt": 1})
 
     def test_preflight_allows_the_kiosk_and_private_network_access(self):
         self.start(FakeReader())
@@ -226,6 +331,7 @@ class ServerTest(unittest.TestCase):
 
         self.assertEqual(response.status, 204)
         self.assertEqual(response.getheader("Access-Control-Allow-Origin"), KIOSK)
+        self.assertIn("X-Agent-Token", response.getheader("Access-Control-Allow-Headers"))
         self.assertEqual(response.getheader("Access-Control-Allow-Private-Network"), "true")
 
     def test_preflight_from_a_foreign_site_is_refused(self):

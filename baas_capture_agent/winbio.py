@@ -8,6 +8,7 @@ from baas_capture_agent.reader import (
     CaptureTimeout,
     NoReaderError,
     ReaderError,
+    OnFinger,
     ReaderStatus,
 )
 
@@ -167,7 +168,7 @@ class WinBioReader:
             return ReaderStatus(connected=False)
         return ReaderStatus(connected=True, device=self.DEVICE, driver="winbio")
 
-    def capture(self, stop: threading.Event, timeout: float) -> Capture:
+    def capture(self, stop: threading.Event, timeout: float, on_finger: OnFinger = None) -> Capture:
         if self.unit_count() == 0:
             raise NoReaderError("Fingerprint reader not connected")
         session = self._open()
