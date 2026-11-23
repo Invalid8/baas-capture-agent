@@ -14,6 +14,19 @@ def parse_origins(value: str) -> tuple[str, ...]:
     return tuple(o.strip().rstrip("/") for o in value.split(",") if o.strip())
 
 
+def open_reader():
+    if sys.platform == "win32":
+        from baas_capture_agent.winbio import WinBioReader
+
+        return WinBioReader()
+    try:
+        from baas_capture_agent.reader import LibfprintReader
+
+        return LibfprintReader()
+    except (ImportError, ValueError) as exc:
+        sys.exit(f"libfprint is not available ({exc}). Install gir1.2-fprint-2.0 and libfprint-2-2.")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="baas-capture-agent",
@@ -34,12 +47,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args(argv)
 
-    try:
-        from baas_capture_agent.reader import LibfprintReader
-
-        reader = LibfprintReader()
-    except (ImportError, ValueError) as exc:
-        sys.exit(f"libfprint is not available ({exc}). Install gir1.2-fprint-2.0 and libfprint-2-2.")
+    reader = open_reader()
 
     origins = parse_origins(args.origins)
     server = make_server(CaptureAgent(reader, args.timeout), args.port, origins)

@@ -25,6 +25,7 @@ class Capture:
     height: int
     pixels: bytes
     device: str
+    ppi: float | None = None
 
 
 @dataclass(frozen=True)
@@ -103,4 +104,5 @@ class LibfprintReader:
             height=image.get_height(),
             pixels=bytes(image.get_data()),
             device=device.get_name(),
+            ppi=image.get_ppmm() * 25.4,
         )
