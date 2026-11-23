@@ -48,7 +48,7 @@ def device_node(device: Path) -> Path | None:
 
 def plugged_readers(root: Path = Path("/sys/bus/usb/devices")) -> tuple[str, ...]:
     """Where each U.are.U reader sits on the USB bus right now; a replug gives it a new address."""
-    return tuple(str(device_node(d) or d.name) for d in usb_readers(root))
+    return tuple(node.as_posix() if (node := device_node(d)) else d.name for d in usb_readers(root))
 
 
 def _linux(reader_connected: bool) -> list[Check]:
