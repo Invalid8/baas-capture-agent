@@ -79,7 +79,8 @@ class FakeReader:
         if stop.wait(self.finger_after):
             raise CaptureCancelled("Capture cancelled")
         if on_finger:
-            on_finger()
+            on_finger("on")
+            on_finger("captured")
         image = self.images.pop(0) if len(self.images) > 1 else self.images[0]
         return Capture(image.width, image.height, image.pixels, "Digital Persona U.are.U 4000/4000B/4500", self.ppi)
 
@@ -174,9 +175,9 @@ class ServerTest(unittest.TestCase):
             kinds.append(listener.get_nowait())
         self.assertEqual(
             [e["event"] for e in kinds],
-            ["waiting", "finger_on", "reading", "press_again", "waiting", "finger_on", "reading", "done"],
+            ["waiting", "finger_on", "captured", "reading", "press_again", "waiting", "finger_on", "captured", "reading", "done"],
         )
-        self.assertEqual(kinds[3]["reason"], "blank")
+        self.assertEqual(kinds[4]["reason"], "blank")
         _, log = self.request("GET", "/log")
         self.assertEqual([e["result"] for e in log], ["ok", "rejected-blank"])
         self.assertEqual(log[0]["site"], KIOSK)

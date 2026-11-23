@@ -81,11 +81,29 @@ class CaptureAgent:
             self._attempt = threading.Event()
             if self._cancel.is_set():
                 raise CaptureCancelled("Capture cancelled")
-            raw = self.reader.capture(self._attempt, remaining, on_finger=lambda: self.events.publish("finger_on"))
+            started = time.monotonic()
+            moments: dict[str, float] = {}
+
+            def finger_on(moment: str):
+                moments[moment] = time.monotonic()
+                self.events.publish("finger_on" if moment == "on" else "captured")
+
+            raw = self.reader.capture(self._attempt, remaining, on_finger=finger_on)
+            got_image = time.monotonic()
             self.events.publish("reading")
             image = to_standard(Image(raw.width, raw.height, raw.pixels), raw.ppi)
             quality = assess(image)
-            details = {"ink": quality.ink, "coverage": quality.coverage, "size": f"{image.width}x{image.height}"}
+            touch = moments.get("on", got_image)
+            taken = moments.get("captured", got_image)
+            details = {
+                "ink": quality.ink,
+                "coverage": quality.coverage,
+                "size": f"{image.width}x{image.height}",
+                "wait_ms": round((touch - started) * 1000),
+                "read_ms": round((taken - touch) * 1000),
+                "held_ms": round((got_image - taken) * 1000),
+                "check_ms": round((time.monotonic() - got_image) * 1000),
+            }
             if quality.ok:
                 self.events.publish("done", ink=quality.ink, coverage=quality.coverage)
                 self.log.add(site, "ok", attempt=attempt, **details)

@@ -2,7 +2,7 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
-OnFinger = Callable[[], None] | None
+OnFinger = Callable[[str], None] | None
 
 
 class ReaderError(Exception):
@@ -87,9 +87,19 @@ class LibfprintReader:
             device.open_sync(None)
         except self._glib.Error as exc:
             raise ReaderError(exc.message) from exc
+        flags = self._fprint.FingerStatusFlags
+        told: set[str] = set()
+
         def finger_status(dev, _spec):
-            if on_finger and dev.get_finger_status() & self._fprint.FingerStatusFlags.PRESENT:
-                on_finger()
+            if on_finger is None:
+                return
+            status = dev.get_finger_status()
+            if not status & flags.PRESENT:
+                return
+            moment = "on" if status & flags.NEEDED else "captured"
+            if moment not in told:
+                told.add(moment)
+                on_finger(moment)
 
         watcher = threading.Thread(target=watch, daemon=True)
         watcher.start()

@@ -15,8 +15,10 @@ anywhere.
 - **Bad presses are asked again:** a blank glass, a smudge left behind or a
   press too light to read is not sent; the agent waits for a better press inside
   the same request.
-- **Live events:** your page can show "hold still" the moment a finger lands
-  and "press a little firmer" when a press is rejected.
+- **Live events:** your page can show "hold still" the moment a finger lands,
+  "lift your finger" the moment the print is taken (on Linux the reader only
+  hands the image over once the finger leaves the glass, so saying so is what
+  makes a read fast) and "press a little firmer" when a press is rejected.
 - **Nothing to configure:** a new website asks once on screen, "Allow … to use
   the fingerprint reader?", and the answer is remembered.
 - **Check page:** open `http://127.0.0.1:7501` in a browser to see the reader,
@@ -105,7 +107,7 @@ that holds a print).
 const events = new EventSource("http://127.0.0.1:7501/events");
 events.onmessage = (m) => {
   const e = JSON.parse(m.data);
-  // waiting · finger_on · reading · press_again {reason: blank|faint, say} · done · timeout · cancelled · error
+  // waiting · finger_on · captured (lift now) · reading · press_again {reason: blank|faint, say} · done · timeout · cancelled · error
 };
 ```
 

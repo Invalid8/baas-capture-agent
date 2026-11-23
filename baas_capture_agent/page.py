@@ -75,7 +75,7 @@ td { padding:8px 8px 8px 0; border-top:1px solid var(--line); vertical-align:top
 <script>
 const TOKEN = "@TOKEN@";
 const $ = (id) => document.getElementById(id);
-const say = { waiting: "Place a finger on the glass now.", finger_on: "Hold still…", reading: "Reading…",
+const say = { waiting: "Place a finger on the glass now.", finger_on: "Hold still…", captured: "Got it · lift your finger.", reading: "Reading…",
   done: "Got it · lift your finger.", timeout: "No finger came. Press Test to try again.", cancelled: "Stopped." };
 
 function li(html) { const el = document.createElement("li"); el.innerHTML = html; return el; }
