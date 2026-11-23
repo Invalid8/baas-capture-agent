@@ -3,8 +3,9 @@ from dataclasses import dataclass
 STANDARD_PPI = 500.0
 BLOCK = 16
 BLOCK_CONTRAST = 20.0
-MIN_INK = 0.01
-MIN_COVERAGE = 0.20
+BLANK_INK = 0.003
+MIN_INK = 0.015
+MIN_COVERAGE = 0.35
 
 
 @dataclass(frozen=True)
@@ -76,11 +77,14 @@ def assess(image: Image) -> Assessment:
             blocks += 1
             busy += spread >= BLOCK_CONTRAST
     coverage = busy / blocks if blocks else 0.0
+    return Assessment(ink=round(ink, 4), coverage=round(coverage, 3), problem=verdict(ink, coverage))
 
-    if ink < MIN_INK:
-        problem = "blank"
-    elif coverage < MIN_COVERAGE:
-        problem = "faint"
-    else:
-        problem = None
-    return Assessment(ink=round(ink, 4), coverage=round(coverage, 3), problem=problem)
+
+def verdict(ink: float, coverage: float) -> str | None:
+    """Thresholds from real U.are.U 4500 presses (23 Nov 2026): empty glass and a barely
+    touching tip ~0.1% ink; half a finger 0.4-1% ink; full presses 2-16% ink, 39-79% area."""
+    if ink < BLANK_INK:
+        return "blank"
+    if ink < MIN_INK or coverage < MIN_COVERAGE:
+        return "faint"
+    return None

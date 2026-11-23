@@ -26,7 +26,7 @@ from baas_capture_agent.reader import (
 HOST = "127.0.0.1"
 RETRY_PAUSE = 0.8
 HEARTBEAT = 15.0
-SAY = {"blank": "Nothing was read. Place your finger flat on the glass.", "faint": "Too faint. Press a little firmer."}
+SAY = {"blank": "Nothing was read. Place your finger flat on the glass.", "faint": "Too faint. Press a little firmer and cover more of the glass."}
 
 
 class ReaderBusy(Exception):

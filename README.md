@@ -173,6 +173,7 @@ GitHub Actions runs the tests on Linux and Windows, builds both `.exe` files and
 
 ## Status
 
-The thresholds for "blank" and "too faint" are first estimates and will be tuned
-on real presses. The Windows reader works on paper and in CI (the Windows
+The "blank" and "too faint" thresholds come from real 4500 presses on Linux:
+an empty glass or a barely touching fingertip reads about 0.1% ink, half a
+finger 0.4–1%, full presses 2–16%. The Windows reader works on paper and in CI (the Windows
 Biometric Framework answers), but has not yet captured from a real 4500.

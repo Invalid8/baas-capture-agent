@@ -1,6 +1,6 @@
 import unittest
 
-from baas_capture_agent.imaging import Image, assess, to_standard
+from baas_capture_agent.imaging import Image, assess, to_standard, verdict
 
 
 def ridges(width, height, period=8, dark=30, light=220, background=235, inset=0):
@@ -58,6 +58,17 @@ class AssessTest(unittest.TestCase):
         for y in range(16):
             pixels[y * 128 : y * 128 + 32] = image.pixels[y * 128 : y * 128 + 32]
         self.assertEqual(assess(Image(128, 128, bytes(pixels))).problem, "faint")
+
+    def test_thresholds_match_the_real_4500_presses_of_23_nov(self):
+        cases = {
+            "firm press": (0.055, 0.67, None),
+            "lowest real press": (0.020, 0.39, None),
+            "light fingertip": (0.0008, 0.05, "blank"),
+            "half on the glass": (0.010, 0.45, "faint"),
+            "half, lighter": (0.004, 0.33, "faint"),
+        }
+        for name, (ink, coverage, problem) in cases.items():
+            self.assertEqual(verdict(ink, coverage), problem, name)
 
     def test_a_dark_background_image_is_read_the_other_way_round(self):
         image = ridges(128, 128)
