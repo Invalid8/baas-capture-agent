@@ -22,6 +22,8 @@ li { padding:10px 0; border-top:1px solid var(--line); display:flex; gap:10px; a
 li:first-child { border-top:0; }
 .grow { flex:1; min-width:0; overflow-wrap:anywhere; }
 button { font:inherit; font-weight:600; border:0; border-radius:8px; padding:9px 14px; cursor:pointer; background:var(--text); color:var(--page); }
+a.button { display:inline-block; text-decoration:none; font-weight:600; border-radius:8px; padding:9px 14px; background:var(--text); color:var(--page); margin-top:6px; }
+a.inline { color:var(--text); font-weight:500; }
 button.quiet { background:var(--raised); color:var(--text); font-weight:500; border:1px solid var(--line); }
 button:disabled { opacity:.45; cursor:default; }
 .test { display:grid; grid-template-columns:200px 1fr; gap:22px; align-items:start; }
@@ -42,6 +44,7 @@ td { padding:8px 8px 8px 0; border-top:1px solid var(--line); vertical-align:top
     <h2>Reader</h2>
     <p class="big" id="state">Checking…</p>
     <p class="muted" id="device"></p>
+    <p id="todo-action" hidden><a id="todo-link" class="button" href="#"></a></p>
   </section>
 
   <section>
@@ -81,19 +84,41 @@ const say = { waiting: "Place a finger on the glass now.", finger_on: "Hold stil
 function li(html) { const el = document.createElement("li"); el.innerHTML = html; return el; }
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
 
+let lastChecks = [];
+
+function headline(s) {
+  const todo = lastChecks.find((c) => !c.ok);
+  $("reader").className = s.connected ? "ok" : "bad";
+  $("todo-action").hidden = true;
+  if (s.connected) {
+    $("state").innerHTML = '<span class="dot"></span>' + (s.capturing ? "Reading a finger" : "Ready to use");
+    $("device").textContent = s.device;
+  } else if (todo) {
+    $("state").innerHTML = '<span class="dot"></span>One thing to do';
+    $("device").textContent = todo.say;
+    if (todo.link) {
+      $("todo-link").href = todo.link;
+      $("todo-link").textContent = todo.link_label || "Open";
+      $("todo-action").hidden = false;
+    }
+  } else {
+    $("state").innerHTML = '<span class="dot"></span>Not connected';
+    $("device").textContent = "Plug in the U.are.U 4500.";
+  }
+}
+
 async function status() {
   try {
-    const s = await (await fetch("/status")).json();
-    $("reader").className = s.connected ? "ok" : "bad";
-    $("state").innerHTML = '<span class="dot"></span>' + (s.capturing ? "Busy" : s.connected ? "Ready" : "Not connected");
-    $("device").textContent = s.connected ? `${s.device} · ${s.driver}` : "Plug in the U.are.U 4500.";
+    headline(await (await fetch("/status")).json());
   } catch { $("state").textContent = "Agent not answering"; }
 }
 
 async function checks() {
-  const list = await (await fetch("/doctor")).json();
-  $("checks").replaceChildren(...list.map((c) =>
-    li(`<span class="dot ${c.ok ? "ok" : "bad"}"></span><span class="grow"><b>${esc(c.name)}</b> · ${esc(c.say)}</span>`)));
+  lastChecks = await (await fetch("/doctor")).json();
+  $("checks").replaceChildren(...lastChecks.map((c) =>
+    li(`<span class="dot ${c.ok ? "ok" : "bad"}"></span><span class="grow"><b>${esc(c.name)}</b> · ${esc(c.say)}` +
+      (c.link ? ` <a class="inline" href="${esc(c.link)}">${esc(c.link_label || "Open")}</a>` : "") + `</span>`)));
+  status();
 }
 
 async function site(action, origin) {
@@ -150,8 +175,9 @@ events.onmessage = (m) => {
   if (["done", "press_again", "timeout", "cancelled", "error"].includes(e.event)) log();
 };
 
-status(); checks(); sites(); log();
+checks(); sites(); log();
 setInterval(status, 3000);
+setInterval(checks, 15000);
 setInterval(sites, 5000);
 </script>
 </body>

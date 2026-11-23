@@ -28,7 +28,7 @@ anywhere.
 
 | | Linux | Windows |
 |---|---|---|
-| How it reads the 4500 | [libfprint](https://fprint.freedesktop.org/) (`uru4000` driver) | Windows Biometric Framework (the 4500's WBF driver) |
+| How it reads the 4500 | [libfprint](https://fprint.freedesktop.org/) (`uru4000` driver) | Windows Biometric Framework (WBF driver), or the U.are.U SDK if the PC already has it |
 | Package | `.deb` (Ubuntu 22.04+, Debian 12+, Pop!_OS) | setup `.exe` |
 | Status | Working, used with a real 4500 | **Being verified** on a real PC: run `baas-probe.exe` (below) |
 
@@ -58,20 +58,32 @@ curl http://127.0.0.1:7501/status
 
 ## Windows
 
-The 4500 needs its WBF driver. Windows Update often installs it when the reader is
-plugged in; otherwise install HID's "U.are.U Fingerprint Reader Driver (WBF)".
-Don't install the older **non-WBF** driver as well: the two conflict, and Windows
-then shows no reader.
+You don't need to remove anything. The agent reads the 4500 whichever way the PC
+already uses it:
+
+- **Windows' own fingerprint support** (the 4500's WBF driver, the one Windows
+  Hello uses). Windows Update often installs it when the reader is plugged in.
+- **The U.are.U SDK** (DigitalPersona's own driver), on PCs that already run
+  DigitalPersona or other U.are.U software. The agent borrows the reader only while
+  it reads a finger, so that software keeps working.
+
+If the reader has no driver at all, the setup asks Windows to find one, and the
+check page says what to do next, with a button.
 
 **Check the reader first.** Download `baas-probe.exe`, double-click it and accept
 the administrator prompt (Windows only hands raw fingerprint images to
 administrators). It tells you, step by step:
 
 1. whether it runs as administrator,
-2. how many fingerprint readers Windows can see,
-3. then asks for a finger and saves the image as `baas-probe.png` next to the `.exe`.
+2. which ways to reach the reader this PC has (Windows' fingerprint support, the
+   U.are.U SDK) and whether each sees the reader,
+3. then asks for a finger on each one that does, and saves the images as
+   `baas-probe-1.png` (and `-2.png`) next to the `.exe`.
 
 If any step fails, the message says why.
+
+Windows may show **"Windows protected your PC"** the first time, because the
+program isn't signed yet: click **More info**, then **Run anyway**.
 
 Then run **`baas-capture-agent-setup.exe`**. It installs the agent, starts it at
 every sign-in with the administrator rights Windows needs for raw images (a
@@ -158,8 +170,8 @@ Start with the check page, `http://127.0.0.1:7501`: its Checks say what is wrong
 - **Linux, `connected: false`:** check `lsusb` shows `05ba:000a`, then unplug and
   replug the reader. Logs: `journalctl --user -u baas-capture-agent -f`.
 - **Linux, "libfprint is not available":** `sudo apt install gir1.2-fprint-2.0 libfprint-2-2`.
-- **Windows, the probe sees 0 readers:** check Device Manager under "Biometric
-  devices"; remove the non-WBF driver if both are installed.
+- **Windows, the probe sees no reader:** plug the reader into another USB port, then
+  look in Windows Update > Optional updates for a fingerprint driver.
 - **Windows, "run the agent as Administrator":** right-click, Run as administrator.
 
 ## Develop
@@ -177,5 +189,9 @@ GitHub Actions runs the tests on Linux and Windows, builds both `.exe` files and
 
 The "blank" and "too faint" thresholds come from real 4500 presses on Linux:
 an empty glass or a barely touching fingertip reads about 0.1% ink, half a
-finger 0.4–1%, full presses 2–16%. The Windows reader works on paper and in CI (the Windows
-Biometric Framework answers), but has not yet captured from a real 4500.
+finger 0.4–1%, full presses 2–16%. On Windows both routes are built and unit-tested and the
+Windows Biometric Framework answers in CI, but neither has yet captured from a real 4500.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).

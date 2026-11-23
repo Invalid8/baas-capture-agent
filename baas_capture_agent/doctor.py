@@ -8,15 +8,21 @@ VENDOR = "05ba"
 UDEV_RULE = Path("/usr/lib/udev/rules.d/70-baas-capture-agent.rules")
 
 
+WBF_DRIVER = "https://www.hidglobal.com/media/4171"
+WINDOWS_UPDATE = "ms-settings:windowsupdate-optionalupdates"
+
+
 @dataclass(frozen=True)
 class Check:
     name: str
     ok: bool
     say: str
+    link: str | None = None
+    link_label: str | None = None
 
 
-def run(reader_connected: bool) -> list[dict]:
-    checks = _windows(reader_connected) if sys.platform == "win32" else _linux(reader_connected)
+def run(reader_connected: bool, route: str | None = None) -> list[dict]:
+    checks = _windows(reader_connected, route) if sys.platform == "win32" else _linux(reader_connected)
     return [asdict(c) for c in checks]
 
 
@@ -76,21 +82,45 @@ def parse_pnputil(text: str) -> list[dict[str, str]]:
     return [d for d in devices if f"VID_{VENDOR.upper()}" in d.get("Instance ID", "").upper()]
 
 
-def windows_checks(devices: list[dict[str, str]], reader_connected: bool) -> list[Check]:
+def windows_checks(devices: list[dict[str, str]], reader_connected: bool, route: str | None = None) -> list[Check]:
     if not devices:
         return [Check("USB", False, "Windows doesn't see a U.are.U reader. Plug it in, or try another USB port.")]
     device = devices[0]
     name = device.get("Device Description", "U.are.U reader")
     checks = [Check("USB", True, f"Windows sees the {name}.")]
-    if device.get("Class Name", "").lower() != "biometric":
+    if not device.get("Driver Name") and device.get("Status", "").lower() != "started":
         checks.append(
             Check(
                 "Driver",
                 False,
-                "The reader uses the older (non-WBF) driver. Uninstall it in Device Manager and install the "
-                "U.are.U WBF driver.",
+                "The reader has no driver yet. Open Windows Update > Optional updates, tick the fingerprint driver "
+                "and install it. If none is listed, get the U.are.U WBF driver from HID.",
+                WINDOWS_UPDATE,
+                "Open Windows Update",
             )
         )
+        return checks
+    if device.get("Class Name", "").lower() != "biometric":
+        if reader_connected and route == "dpfpdd":
+            checks.append(
+                Check(
+                    "Driver",
+                    True,
+                    "The reader uses DigitalPersona's own driver. The agent reads it through the U.are.U SDK, so your "
+                    "other DigitalPersona software keeps working.",
+                )
+            )
+        else:
+            checks.append(
+                Check(
+                    "Driver",
+                    False,
+                    "The reader uses DigitalPersona's own driver, but the U.are.U SDK that goes with it isn't installed. "
+                    "Reinstall your DigitalPersona software, or install HID's U.are.U WBF driver instead.",
+                    WBF_DRIVER,
+                    "Get the WBF driver",
+                )
+            )
         return checks
     if device.get("Status", "").lower() != "started":
         checks.append(Check("Driver", False, f"The WBF driver isn't running ({device.get('Status', 'unknown')}). Replug the reader."))
@@ -104,11 +134,11 @@ def windows_checks(devices: list[dict[str, str]], reader_connected: bool) -> lis
     return checks
 
 
-def _windows(reader_connected: bool) -> list[Check]:
+def _windows(reader_connected: bool, route: str | None) -> list[Check]:
     try:
         text = subprocess.run(
             ["pnputil", "/enum-devices", "/connected"], capture_output=True, text=True, timeout=15, check=False
         ).stdout
     except (OSError, subprocess.TimeoutExpired):
         return [Check("Driver", reader_connected, "Couldn't ask Windows about its drivers (pnputil).")]
-    return windows_checks(parse_pnputil(text), reader_connected)
+    return windows_checks(parse_pnputil(text), reader_connected, route)

@@ -21,6 +21,10 @@ class CaptureTimeout(ReaderError):
     pass
 
 
+class BadPress(ReaderError):
+    """The reader saw a finger but couldn't read it; the agent asks for another press."""
+
+
 @dataclass(frozen=True)
 class Capture:
     width: int
@@ -54,6 +58,30 @@ class UnavailableReader:
 
     def capture(self, stop: threading.Event, timeout: float, on_finger: OnFinger = None) -> Capture:
         raise NoReaderError(self.reason)
+
+
+class FirstConnected:
+    """Several ways to reach the reader (Windows: its own framework, then the U.are.U SDK); uses whichever sees it."""
+
+    def __init__(self, readers: list[Reader]):
+        self.readers = readers
+
+    def _connected(self) -> tuple[Reader, ReaderStatus] | None:
+        for reader in self.readers:
+            status = reader.status()
+            if status.connected:
+                return reader, status
+        return None
+
+    def status(self) -> ReaderStatus:
+        found = self._connected()
+        return found[1] if found else ReaderStatus(connected=False)
+
+    def capture(self, stop: threading.Event, timeout: float, on_finger: OnFinger = None) -> Capture:
+        found = self._connected()
+        if found is None:
+            raise NoReaderError("Fingerprint reader not connected")
+        return found[0].capture(stop, timeout, on_finger)
 
 
 class LibfprintReader:

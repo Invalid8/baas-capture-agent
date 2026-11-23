@@ -3,6 +3,7 @@ import threading
 from ctypes import c_uint8, c_uint16, c_uint32, c_uint64
 
 from baas_capture_agent.reader import (
+    BadPress,
     Capture,
     CaptureCancelled,
     CaptureTimeout,
@@ -127,6 +128,8 @@ class WinBioReader:
             return
         if code == WINBIO_E_CANCELED:
             raise CaptureCancelled("Capture cancelled")
+        if code == WINBIO_E_BAD_CAPTURE:
+            raise BadPress(hresult_text(code))
         if missing_is_unplugged and code == WINBIO_E_INVALID_UNIT:
             raise NoReaderError("Fingerprint reader not connected")
         raise ReaderError(hresult_text(code))

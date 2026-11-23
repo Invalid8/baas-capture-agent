@@ -34,6 +34,7 @@ Name: "{group}\Reader check (probe)"; Filename: "{app}\baas-probe.exe"
 
 [Run]
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM baas-capture-agent.exe"; Flags: runhidden; StatusMsg: "Stopping an older agent..."
+Filename: "{sys}\pnputil.exe"; Parameters: "/scan-devices"; Flags: runhidden; StatusMsg: "Asking Windows to find the fingerprint reader's driver..."
 Filename: "{sys}\schtasks.exe"; Parameters: "/Create /F /TN ""{#TaskName}"" /TR ""\""{app}\baas-capture-agent.exe\"""" /SC ONLOGON /RL HIGHEST"; Flags: runhidden; StatusMsg: "Starting the agent at every sign-in..."
 Filename: "{sys}\schtasks.exe"; Parameters: "/Run /TN ""{#TaskName}"""; Flags: runhidden; StatusMsg: "Starting the agent..."
 Filename: "http://127.0.0.1:7501"; Description: "Open the reader check page"; Flags: postinstall shellexec skipifsilent nowait

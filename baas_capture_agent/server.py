@@ -16,6 +16,7 @@ from baas_capture_agent.origins import OriginStore
 from baas_capture_agent.page import render
 from baas_capture_agent.png import encode_grayscale
 from baas_capture_agent.reader import (
+    BadPress,
     CaptureCancelled,
     CaptureTimeout,
     NoReaderError,
@@ -88,7 +89,14 @@ class CaptureAgent:
                 moments[moment] = time.monotonic()
                 self.events.publish("finger_on" if moment == "on" else "captured")
 
-            raw = self.reader.capture(self._attempt, remaining, on_finger=finger_on)
+            try:
+                raw = self.reader.capture(self._attempt, remaining, on_finger=finger_on)
+            except BadPress:
+                self.events.publish("press_again", reason="faint", say=SAY["faint"])
+                self.log.add(site, "rejected-by-reader", attempt=attempt)
+                if self._cancel.wait(RETRY_PAUSE):
+                    raise CaptureCancelled("Capture cancelled")
+                continue
             got_image = time.monotonic()
             self.events.publish("reading")
             image = to_standard(Image(raw.width, raw.height, raw.pixels), raw.ppi)
@@ -215,7 +223,8 @@ def make_handler(agent: CaptureAgent, origins: OriginStore, token: str):
             if path == "/status":
                 self._json(HTTPStatus.OK, agent.status())
             elif path == "/doctor":
-                self._json(HTTPStatus.OK, doctor.run(agent.status()["connected"]))
+                status = agent.status()
+                self._json(HTTPStatus.OK, doctor.run(status["connected"], status["driver"]))
             elif path == "/log":
                 self._json(HTTPStatus.OK, agent.log.recent())
             elif path == "/sites":

@@ -35,10 +35,21 @@ class WindowsDoctorTest(unittest.TestCase):
         self.assertTrue(all(c.ok for c in checks))
         self.assertEqual([c.name for c in checks], ["USB", "Driver", "Windows Biometric Framework"])
 
-    def test_names_the_legacy_driver(self):
+    def test_the_old_driver_is_fine_when_the_sdk_reads_it(self):
+        checks = windows_checks(windows(class_name="DigitalPersona"), reader_connected=True, route="dpfpdd")
+        self.assertTrue(all(c.ok for c in checks))
+        self.assertIn("keeps working", checks[-1].say)
+
+    def test_the_old_driver_without_the_sdk_offers_the_wbf_driver(self):
         checks = windows_checks(windows(class_name="DigitalPersona"), reader_connected=False)
         self.assertFalse(checks[-1].ok)
-        self.assertIn("non-WBF", checks[-1].say)
+        self.assertEqual(checks[-1].link_label, "Get the WBF driver")
+
+    def test_a_reader_without_any_driver_points_to_windows_update(self):
+        text = PNPUTIL.format("6&1A2B", "", "Problem").replace("Driver Name:                oem42.inf\n", "")
+        checks = windows_checks(parse_pnputil(text), reader_connected=False)
+        self.assertFalse(checks[-1].ok)
+        self.assertEqual(checks[-1].link, "ms-settings:windowsupdate-optionalupdates")
 
     def test_driver_not_started(self):
         checks = windows_checks(windows(status="Problem"), reader_connected=False)

@@ -194,6 +194,24 @@ class ServerTest(unittest.TestCase):
         self.assertEqual([e["result"] for e in log], ["ok", "rejected-blank"])
         self.assertEqual(log[0]["site"], KIOSK)
 
+    def test_a_press_the_reader_could_not_read_is_asked_again(self):
+        from baas_capture_agent.reader import BadPress
+
+        class Fussy(FakeReader):
+            def capture(self, stop, timeout, on_finger=None):
+                if not getattr(self, "complained", False):
+                    self.complained = True
+                    raise BadPress("The reader could not read that press")
+                return super().capture(stop, timeout, on_finger)
+
+        self.start(Fussy(), timeout=5)
+
+        response, body = self.request("POST", "/capture")
+        _, log = self.request("GET", "/log")
+
+        self.assertEqual((response.status, body["attempts"]), (200, 2))
+        self.assertEqual([e["result"] for e in log], ["ok", "rejected-by-reader"])
+
     def test_only_blank_presses_end_in_a_timeout(self):
         self.start(FakeReader(images=(BLANK,)), timeout=1.2)
 

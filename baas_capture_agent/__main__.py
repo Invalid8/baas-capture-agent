@@ -26,15 +26,25 @@ def config_dir() -> Path:
     return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "baas-capture-agent"
 
 
+def windows_reader():
+    from baas_capture_agent.dpfpdd import DpfpddReader
+    from baas_capture_agent.reader import FirstConnected, UnavailableReader
+    from baas_capture_agent.winbio import WinBioReader
+
+    routes = []
+    for route in (WinBioReader, DpfpddReader):
+        try:
+            routes.append(route())
+        except OSError:
+            continue
+    if not routes:
+        return UnavailableReader("Windows fingerprint support is missing: install the U.are.U WBF driver")
+    return FirstConnected(routes)
+
+
 def open_reader():
     if sys.platform == "win32":
-        from baas_capture_agent.reader import UnavailableReader
-        from baas_capture_agent.winbio import WinBioReader
-
-        try:
-            return WinBioReader()
-        except OSError:
-            return UnavailableReader("Windows fingerprint support is missing: install the U.are.U WBF driver")
+        return windows_reader()
     try:
         from baas_capture_agent.reader import LibfprintReader
 
