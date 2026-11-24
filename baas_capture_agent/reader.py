@@ -1,4 +1,5 @@
 import threading
+import time
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
@@ -49,6 +50,35 @@ class Reader(Protocol):
     def status(self) -> ReaderStatus: ...
 
     def capture(self, stop: threading.Event, timeout: float, on_finger: OnFinger = None) -> Capture: ...
+
+
+class Watch:
+    """Calls cancel() once if the caller's stop is set, or the timeout passes, before done() is called.
+
+    It only reads the caller's stop: a reader that set it to wake its own watcher would cancel whatever
+    the caller does next with that event (a retry after a fresh start was cancelled that way in 0.2.3).
+    """
+
+    def __init__(self, stop: threading.Event, timeout: float | None, cancel: Callable[[], None]):
+        self.reason: str | None = None
+        self._stop, self._cancel = stop, cancel
+        self._deadline = None if timeout is None else time.monotonic() + timeout
+        self._finished = threading.Event()
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self) -> None:
+        while not self._finished.wait(0.05):
+            if self._stop.is_set():
+                self.reason = "cancelled"
+            elif self._deadline is not None and time.monotonic() >= self._deadline:
+                self.reason = "timeout"
+            else:
+                continue
+            self._cancel()
+            return
+
+    def done(self) -> None:
+        self._finished.set()
 
 
 class UnavailableReader:
@@ -138,12 +168,6 @@ class LibfprintReader:
             raise NeedsFreshStart("libfprint's generic heat timer is running out")
 
         cancellable = self._gio.Cancellable()
-        reason: list[str] = []
-
-        def watch():
-            reason.append("cancelled" if stop.wait(timeout) else "timeout")
-            cancellable.cancel()
-
         try:
             device.open_sync(None)
         except self._glib.Error as exc:
@@ -162,20 +186,19 @@ class LibfprintReader:
                 told.add(moment)
                 on_finger(moment)
 
-        watcher = threading.Thread(target=watch, daemon=True)
-        watcher.start()
+        watch = Watch(stop, timeout, cancellable.cancel)
         handler = device.connect("notify::finger-status", finger_status)
         try:
             image = device.capture_sync(True, cancellable)
         except self._glib.Error as exc:
             if cancellable.is_cancelled():
-                if reason and reason[0] == "timeout":
+                if watch.reason == "timeout":
                     raise CaptureTimeout("No finger detected") from exc
                 raise CaptureCancelled("Capture cancelled") from exc
             raise self._error(exc) from exc
         finally:
+            watch.done()
             device.disconnect(handler)
-            stop.set()
             device.close_sync(None)
 
         return Capture(

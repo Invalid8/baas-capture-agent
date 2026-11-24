@@ -11,6 +11,7 @@ from baas_capture_agent.reader import (
     OnFinger,
     ReaderError,
     ReaderStatus,
+    Watch,
 )
 
 FACILITY = 0x05BA << 16
@@ -130,12 +131,7 @@ class DpfpddReader:
         if opened != SUCCESS:
             raise ReaderError(error_text(opened))
 
-        def watch():
-            if stop.wait(timeout):
-                self._dll.dpfpdd_cancel(device)
-
-        watcher = threading.Thread(target=watch, daemon=True)
-        watcher.start()
+        watch = Watch(stop, None, lambda: self._dll.dpfpdd_cancel(device))
         param = CaptureParam(ctypes.sizeof(CaptureParam), IMG_FMT_PIXEL_BUFFER, IMG_PROC_NONE, RESOLUTION)
         result = CaptureResult(size=ctypes.sizeof(CaptureResult))
         result.info.size = ctypes.sizeof(ImageInfo)
@@ -150,5 +146,5 @@ class DpfpddReader:
                 raise ReaderError(error_text(code))
             return capture_from(result, image.raw[: size.value], f"{self._describe(readers[0])} (U.are.U SDK)")
         finally:
-            stop.set()
+            watch.done()
             self._dll.dpfpdd_close(device)

@@ -43,6 +43,7 @@ class CaptureAgent:
         self.log = log or CaptureLog(None)
         self._lock = threading.Lock()
         self._attempt: threading.Event | None = None
+        self._site: str | None = None
         self._cancel = threading.Event()
 
     def status(self) -> dict:
@@ -60,6 +61,7 @@ class CaptureAgent:
             self.log.add(site, "busy")
             raise ReaderBusy("Reader is busy")
         self._cancel.clear()
+        self._site = site
         try:
             return self._capture(site)
         except (CaptureCancelled, CaptureTimeout, ReaderError) as exc:
@@ -133,9 +135,9 @@ class CaptureAgent:
             if self._cancel.wait(RETRY_PAUSE):
                 raise CaptureCancelled("Capture cancelled")
 
-    def cancel(self) -> bool:
+    def cancel(self, site: str | None = None) -> bool:
         attempt = self._attempt
-        if attempt is None:
+        if attempt is None or site != self._site:
             return False
         self._cancel.set()
         attempt.set()
@@ -288,7 +290,7 @@ def make_handler(agent: CaptureAgent, origins: OriginStore, token: str):
                     raise
                 self._json(HTTPStatus.OK, capture)
             elif path == "/cancel":
-                self._json(HTTPStatus.OK, {"cancelled": agent.cancel()})
+                self._json(HTTPStatus.OK, {"cancelled": agent.cancel(self.origin)})
             else:
                 self._json(HTTPStatus.NOT_FOUND, {"detail": "Not found"})
 

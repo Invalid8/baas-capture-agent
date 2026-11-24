@@ -11,6 +11,7 @@ from baas_capture_agent.reader import (
     ReaderError,
     OnFinger,
     ReaderStatus,
+    Watch,
 )
 
 WINBIO_TYPE_FINGERPRINT = 0x00000008
@@ -175,15 +176,8 @@ class WinBioReader:
         if self.unit_count() == 0:
             raise NoReaderError("Fingerprint reader not connected")
         session = self._open()
-        reason: list[str] = []
-
-        def watch():
-            reason.append("cancelled" if stop.wait(timeout) else "timeout")
-            self._dll.WinBioCancel(session)
-
         focused = self._focus and self._dll.WinBioAcquireFocus() & 0xFFFFFFFF == 0
-        watcher = threading.Thread(target=watch, daemon=True)
-        watcher.start()
+        watch = Watch(stop, timeout, lambda: self._dll.WinBioCancel(session))
         sample = ctypes.c_void_p()
         size = ctypes.c_size_t()
         unit = c_uint32()
@@ -198,12 +192,12 @@ class WinBioReader:
                 ctypes.byref(size),
                 ctypes.byref(reject),
             )
-            if result & 0xFFFFFFFF == WINBIO_E_CANCELED and reason and reason[0] == "timeout":
+            if result & 0xFFFFFFFF == WINBIO_E_CANCELED and watch.reason == "timeout":
                 raise CaptureTimeout("No finger detected")
             self._check(result)
             data = ctypes.string_at(sample, size.value)
         finally:
-            stop.set()
+            watch.done()
             if sample:
                 self._dll.WinBioFree(sample)
             if focused:

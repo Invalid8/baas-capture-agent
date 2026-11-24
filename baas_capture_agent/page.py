@@ -151,7 +151,10 @@ async function log() {
   }));
 }
 
+let testing = false;
+
 $("test").onclick = async () => {
+  testing = true;
   $("test").disabled = true; $("cancel").hidden = false; $("quality").textContent = "";
   try {
     const res = await fetch("/capture", { method: "POST" });
@@ -159,10 +162,11 @@ $("test").onclick = async () => {
     if (res.ok) {
       $("well").innerHTML = `<img alt="Captured fingerprint" src="data:image/png;base64,${body.image}">`;
       $("quality").textContent = `${body.width} × ${body.height} at ${body.ppi} ppi · ink ${(body.quality.ink * 100).toFixed(1)}% · print area ${(body.quality.coverage * 100).toFixed(0)}% · ${body.attempts} ${body.attempts === 1 ? "press" : "presses"}`;
-    } else if (res.status !== 408 && res.status !== 409) {
+    } else if (res.status !== 408 && body.detail !== "Capture cancelled") {
       $("say").textContent = body.detail;
     }
   } finally {
+    testing = false;
     $("test").disabled = false; $("cancel").hidden = true; status(); log();
   }
 };
@@ -171,8 +175,9 @@ $("cancel").onclick = () => fetch("/cancel", { method: "POST" });
 const events = new EventSource("/events");
 events.onmessage = (m) => {
   const e = JSON.parse(m.data);
-  $("say").textContent = e.event === "press_again" ? e.say : e.event === "error" ? e.detail : (say[e.event] || $("say").textContent);
   if (["done", "press_again", "timeout", "cancelled", "error"].includes(e.event)) log();
+  if (!testing) return;
+  $("say").textContent = e.event === "press_again" ? e.say : e.event === "error" ? e.detail : (say[e.event] || $("say").textContent);
 };
 
 checks(); sites(); log();

@@ -26,6 +26,7 @@ from baas_capture_agent.server import CaptureAgent, make_server
 from tests.test_imaging import ridges
 
 KIOSK = "https://baas-app-kappa.vercel.app"
+CONSOLE = "https://baas-admin-ivory.vercel.app"
 TOKEN = "page-token"
 PRINT: Image = ridges(64, 64)
 BLANK = Image(64, 64, bytes([235] * 64 * 64))
@@ -266,6 +267,24 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(body["detail"], "Reader is busy")
         self.assertTrue(status["capturing"])
         time.sleep(0.6)
+
+    def test_another_site_cannot_cancel_this_capture(self):
+        reader = FakeReader(finger_after=0.8)
+        self.start(reader, timeout=30)
+        self.origins.approve(CONSOLE)
+        result = {}
+
+        def capture():
+            result["response"], result["body"] = self.request("POST", "/capture")
+
+        worker = threading.Thread(target=capture)
+        worker.start()
+        self.assertTrue(reader.started.wait(5))
+        _, cancel = self.request("POST", "/cancel", origin=CONSOLE)
+        worker.join(5)
+
+        self.assertFalse(cancel["cancelled"])
+        self.assertEqual(result["response"].status, 200)
 
     def test_cancel_with_nothing_running(self):
         self.start(FakeReader())
