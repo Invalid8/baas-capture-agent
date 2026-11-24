@@ -2,8 +2,6 @@ import argparse
 import os
 import subprocess
 import sys
-import threading
-import webbrowser
 from pathlib import Path
 
 from baas_capture_agent import __version__, prompt
@@ -88,6 +86,12 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     url = f"http://{HOST}:{args.port}"
+    if sys.platform == "win32" and not args.service:
+        from baas_capture_agent import tray
+
+        tray.run(url)
+        return
+
     folder = config_dir()
     reader = open_reader()
     origins = OriginStore(folder / "sites.json", parse_origins(args.origins), site_prompt(args.service))
@@ -95,18 +99,11 @@ def main(argv: list[str] | None = None) -> None:
     try:
         server = make_server(agent, args.port, origins)
     except OSError:
-        if sys.platform == "win32" and not args.service:
-            webbrowser.open(url)
         sys.exit(f"The agent is already running on {url}")
     print(f"baas-capture-agent {__version__} on {url} (open it in a browser to check the reader)", flush=True)
     try:
         if args.service:
             server.serve_forever()
-        elif sys.platform == "win32":
-            from baas_capture_agent import tray
-
-            threading.Thread(target=server.serve_forever, daemon=True).start()
-            tray.run(agent, url, server.shutdown)
         else:
             panel = subprocess.Popen([sys.executable, "-m", "baas_capture_agent.tray_linux", url])
             try:

@@ -12,7 +12,11 @@ and whether the reader is ready.
 - Windows: nothing to start by hand; the agent is running from boot, before anyone signs in.
 - Windows: installing over an older version works. The setup stops the running agent before copying files
   (it used to stop it after, so the locked file blocked the upgrade).
-- In `--service` mode there is no panel icon and no pop-up; a new site is allowed on the check page.
+- Windows icon by the clock, from setup and at every sign-in: hover shows the state ("BAAS capture agent ·
+  Reader ready"); click for Open the check page, Restart / Stop / Start agent, Hide icon. Opening
+  `baas-capture-agent.exe` (or "Fingerprint reader icon" in the Start menu) shows the icon and starts the agent
+  if it isn't running; it never starts a second agent.
+- The LocalSystem agent shows no pop-ups; a new site is allowed on the check page.
   Recent presses are on the check page; the full log is
   `C:\Windows\System32\config\systemprofile\AppData\Roaming\baas-capture-agent\capture.log`.
 

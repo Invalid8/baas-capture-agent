@@ -1,5 +1,6 @@
 #define AppName "BAAS Capture Agent"
 #define TaskName "BAAS Capture Agent"
+#define IconTaskName "BAAS Capture Agent icon"
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
@@ -29,24 +30,30 @@ Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Check the fingerprint reader"; Filename: "http://127.0.0.1:7501"
+Name: "{group}\Fingerprint reader icon"; Filename: "{app}\baas-capture-agent.exe"
 Name: "{group}\Reader check (probe)"; Filename: "{app}\baas-probe.exe"
 
 [Run]
 Filename: "{sys}\pnputil.exe"; Parameters: "/scan-devices"; Flags: runhidden; StatusMsg: "Asking Windows to find the fingerprint reader's driver..."
 Filename: "{sys}\schtasks.exe"; Parameters: "/Create /F /TN ""{#TaskName}"" /TR ""\""{app}\baas-capture-agent.exe\"" --service"" /SC ONSTART /RU SYSTEM /RL HIGHEST"; Flags: runhidden; StatusMsg: "Starting the agent with Windows..."
 Filename: "{sys}\schtasks.exe"; Parameters: "/Run /TN ""{#TaskName}"""; Flags: runhidden; StatusMsg: "Starting the agent..."
+Filename: "{sys}\schtasks.exe"; Parameters: "/Create /F /TN ""{#IconTaskName}"" /TR ""\""{app}\baas-capture-agent.exe\"""" /SC ONLOGON /RL HIGHEST"; Flags: runhidden; StatusMsg: "Adding the reader icon at sign-in..."
+Filename: "{sys}\schtasks.exe"; Parameters: "/Run /TN ""{#IconTaskName}"""; Flags: runhidden; StatusMsg: "Showing the reader icon..."
 Filename: "http://127.0.0.1:7501"; Description: "Open the reader check page"; Flags: postinstall shellexec skipifsilent nowait
 
 [UninstallRun]
+Filename: "{sys}\schtasks.exe"; Parameters: "/End /TN ""{#IconTaskName}"""; Flags: runhidden; RunOnceId: "EndIconTask"
 Filename: "{sys}\schtasks.exe"; Parameters: "/End /TN ""{#TaskName}"""; Flags: runhidden; RunOnceId: "EndTask"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM baas-capture-agent.exe"; Flags: runhidden; RunOnceId: "KillAgent"
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /F /TN ""{#TaskName}"""; Flags: runhidden; RunOnceId: "DeleteTask"
+Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /F /TN ""{#IconTaskName}"""; Flags: runhidden; RunOnceId: "DeleteIconTask"
 
 [Code]
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Code: Integer;
 begin
+  Exec(ExpandConstant('{sys}\schtasks.exe'), '/End /TN "{#IconTaskName}"', '', SW_HIDE, ewWaitUntilTerminated, Code);
   Exec(ExpandConstant('{sys}\schtasks.exe'), '/End /TN "{#TaskName}"', '', SW_HIDE, ewWaitUntilTerminated, Code);
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM baas-capture-agent.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM baas-probe.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);

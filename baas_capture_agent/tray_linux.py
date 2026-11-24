@@ -1,31 +1,15 @@
 """Linux panel icon (StatusNotifier / AppIndicator), run as its own process beside the agent."""
 
-import json
 import os
 import sys
 import tempfile
-import urllib.request
 import webbrowser
 from pathlib import Path
 
-from baas_capture_agent.tray import COLOURS, label, state
+from baas_capture_agent.tray import COLOURS, describe, read_status
 
 REFRESH_MS = 3000
 CIRCLE = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><circle cx="32" cy="32" r="24" fill="rgb{}"/></svg>'
-
-
-def read_status(url: str) -> dict | None:
-    try:
-        with urllib.request.urlopen(f"{url}/status", timeout=1.5) as response:
-            return json.load(response)
-    except (OSError, ValueError):
-        return None
-
-
-def describe(status: dict | None) -> tuple[str, str]:
-    if status is None:
-        return "missing", "Capture agent not running"
-    return state(status), label(status)
 
 
 def icons(folder: Path) -> dict[str, str]:
