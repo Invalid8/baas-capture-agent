@@ -43,11 +43,13 @@ jobs:
           $version = python -c "import baas_capture_agent; print(baas_capture_agent.__version__)"
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" packaging\windows\setup.iss
       - name: Install the setup, check the agent runs as LocalSystem, install over it, uninstall
+        timeout-minutes: 10
         shell: pwsh
         run: |
           $setup = (Get-ChildItem dist\baas-capture-agent-setup-*.exe | Select-Object -First 1).FullName
           $quiet = "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
-          Start-Process $setup -ArgumentList $quiet -Wait
+          function Run-Quiet($exe) { (Start-Process $exe -ArgumentList $quiet -PassThru).WaitForExit() }
+          Run-Quiet $setup
           $status = Invoke-RestMethod http://127.0.0.1:7501/status
           $status | ConvertTo-Json -Compress
           $version = python -c "import baas_capture_agent; print(baas_capture_agent.__version__)"
@@ -60,12 +62,15 @@ jobs:
           "agent processes run as: $($owners -join ', ')"
           if ("SYSTEM" -notin $owners) { throw "no agent process runs as LocalSystem" }
           Get-ScheduledTask -TaskName "BAAS Capture Agent icon" | Out-Null
-          Start-Process $setup -ArgumentList $quiet -Wait
+          Run-Quiet $setup
           Invoke-RestMethod http://127.0.0.1:7501/status | Out-Null
-          Start-Process "${env:ProgramFiles}\BAAS Capture Agent\unins000.exe" -ArgumentList $quiet -Wait
-          Start-Sleep -Seconds 3
-          if (Get-ScheduledTask -TaskName "BAAS Capture Agent" -ErrorAction SilentlyContinue) { throw "the agent task is still there after uninstall" }
-          if (Get-Process baas-capture-agent -ErrorAction SilentlyContinue) { throw "an agent is still running after uninstall" }
+          Run-Quiet "${env:ProgramFiles}\BAAS Capture Agent\unins000.exe"
+          for ($i = 0; $i -lt 60; $i++) {
+            $left = (Get-ScheduledTask -TaskName "BAAS Capture Agent*" -ErrorAction SilentlyContinue) -or (Get-Process baas-capture-agent -ErrorAction SilentlyContinue)
+            if (-not $left) { break }
+            Start-Sleep -Seconds 1
+          }
+          if ($left) { throw "the agent's task or process is still there a minute after uninstall" }
       - uses: actions/upload-artifact@v4
         with:
           name: windows
