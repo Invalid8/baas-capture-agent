@@ -24,7 +24,7 @@ anywhere.
 - **Check page:** open `http://127.0.0.1:7501` in a browser to see the reader,
   what is wrong if it isn't working, a test capture, the allowed sites and
   the last presses.
-- **Panel icon** on Windows and Linux: green when the reader is ready.
+- **Panel icon** on Linux: green when the reader is ready.
 
 | | Linux | Windows |
 |---|---|---|
@@ -85,11 +85,13 @@ If any step fails, the message says why.
 Windows may show **"Windows protected your PC"** the first time, because the
 program isn't signed yet: click **More info**, then **Run anyway**.
 
-Then run **`baas-capture-agent-setup.exe`**. It installs the agent, starts it at
-every sign-in with the administrator rights Windows needs for raw images (a
-scheduled task, so there is no prompt each time), starts it now and opens the
-check page. The fingerprint icon sits in the notification area; right-click it to
-open the check page or quit. Uninstall from Settings > Apps.
+Then run **`baas-capture-agent-setup.exe`**. It installs the agent, starts it now
+and with Windows at every boot as the LocalSystem account (a scheduled task: Windows
+only hands fingerprint presses to a background program running as LocalSystem), and
+opens the check page. Running a newer setup installs over the old one. On Windows
+there is no panel icon and no pop-up; a new site is allowed on the check page. The
+log is `C:\Windows\System32\config\systemprofile\AppData\Roaming\baas-capture-agent\capture.log`.
+Uninstall from Settings > Apps.
 
 ## Using it from a web page
 
