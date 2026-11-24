@@ -4,7 +4,7 @@ Install: `baas-capture-agent-setup.exe` on Windows, `baas-capture-agent.deb` on 
 (`sudo apt install ./baas-capture-agent.deb`). After installing, http://127.0.0.1:7501 shows the version
 and whether the reader is ready.
 
-## Unreleased
+## 0.2.9 (24 Nov 2026)
 
 - No sites are built in any more. Every site is allowed once on the check page, or up front with
   `--origins` / `BAAS_AGENT_ORIGINS`; localhost stays allowed for development.
