@@ -4,6 +4,18 @@ Install: `baas-capture-agent-setup.exe` on Windows, `baas-capture-agent.deb` on 
 (`sudo apt install ./baas-capture-agent.deb`). After installing, http://127.0.0.1:7501 shows the version
 and whether the reader is ready.
 
+## 0.2.7 (24 Nov 2026)
+
+- Windows: the reader works with the WBF driver. The agent now runs as Windows' LocalSystem account, started
+  with Windows at boot (`--service`). Windows only hands fingerprint presses to the program in front, or to
+  a LocalSystem program that asks for them; before, the reader blinked and the agent never got the press.
+- Windows: nothing to start by hand; the agent is running from boot, before anyone signs in.
+- Windows: installing over an older version works. The setup stops the running agent before copying files
+  (it used to stop it after, so the locked file blocked the upgrade).
+- In `--service` mode there is no panel icon and no pop-up; a new site is allowed on the check page.
+  Recent presses are on the check page; the full log is
+  `C:\Windows\System32\config\systemprofile\AppData\Roaming\baas-capture-agent\capture.log`.
+
 ## 0.2.6 (24 Nov 2026)
 
 - Windows: no more terminal window flashing every 15 seconds while the check page is open. The driver

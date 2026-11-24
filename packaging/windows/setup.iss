@@ -29,13 +29,11 @@ Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Check the fingerprint reader"; Filename: "http://127.0.0.1:7501"
-Name: "{group}\Start the capture agent"; Filename: "{app}\baas-capture-agent.exe"
 Name: "{group}\Reader check (probe)"; Filename: "{app}\baas-probe.exe"
 
 [Run]
-Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM baas-capture-agent.exe"; Flags: runhidden; StatusMsg: "Stopping an older agent..."
 Filename: "{sys}\pnputil.exe"; Parameters: "/scan-devices"; Flags: runhidden; StatusMsg: "Asking Windows to find the fingerprint reader's driver..."
-Filename: "{sys}\schtasks.exe"; Parameters: "/Create /F /TN ""{#TaskName}"" /TR ""\""{app}\baas-capture-agent.exe\"""" /SC ONLOGON /RL HIGHEST"; Flags: runhidden; StatusMsg: "Starting the agent at every sign-in..."
+Filename: "{sys}\schtasks.exe"; Parameters: "/Create /F /TN ""{#TaskName}"" /TR ""\""{app}\baas-capture-agent.exe\"" --service"" /SC ONSTART /RU SYSTEM /RL HIGHEST"; Flags: runhidden; StatusMsg: "Starting the agent with Windows..."
 Filename: "{sys}\schtasks.exe"; Parameters: "/Run /TN ""{#TaskName}"""; Flags: runhidden; StatusMsg: "Starting the agent..."
 Filename: "http://127.0.0.1:7501"; Description: "Open the reader check page"; Flags: postinstall shellexec skipifsilent nowait
 
@@ -43,3 +41,15 @@ Filename: "http://127.0.0.1:7501"; Description: "Open the reader check page"; Fl
 Filename: "{sys}\schtasks.exe"; Parameters: "/End /TN ""{#TaskName}"""; Flags: runhidden; RunOnceId: "EndTask"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM baas-capture-agent.exe"; Flags: runhidden; RunOnceId: "KillAgent"
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /F /TN ""{#TaskName}"""; Flags: runhidden; RunOnceId: "DeleteTask"
+
+[Code]
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Code: Integer;
+begin
+  Exec(ExpandConstant('{sys}\schtasks.exe'), '/End /TN "{#TaskName}"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM baas-capture-agent.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM baas-probe.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Sleep(1000);
+  Result := '';
+end;

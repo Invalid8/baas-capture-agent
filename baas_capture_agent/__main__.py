@@ -57,6 +57,10 @@ def open_reader():
     return WorkerReader(LibfprintReader)
 
 
+def site_prompt(service: bool):
+    return None if service else prompt.ask
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="baas-capture-agent",
@@ -74,23 +78,31 @@ def main(argv: list[str] | None = None) -> None:
         default=float(os.environ.get("BAAS_AGENT_TIMEOUT", DEFAULT_TIMEOUT)),
         help="Seconds to wait for a finger",
     )
+    parser.add_argument(
+        "--service",
+        action="store_true",
+        help="Run with no windows, as Windows' LocalSystem task does: no panel icon or pop-ups; "
+        "new sites are allowed on the check page",
+    )
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args(argv)
 
     url = f"http://{HOST}:{args.port}"
     folder = config_dir()
     reader = open_reader()
-    origins = OriginStore(folder / "sites.json", parse_origins(args.origins), prompt.ask)
+    origins = OriginStore(folder / "sites.json", parse_origins(args.origins), site_prompt(args.service))
     agent = CaptureAgent(reader, args.timeout, EventHub(), CaptureLog(folder / "capture.log"))
     try:
         server = make_server(agent, args.port, origins)
     except OSError:
-        if sys.platform == "win32":
+        if sys.platform == "win32" and not args.service:
             webbrowser.open(url)
         sys.exit(f"The agent is already running on {url}")
     print(f"baas-capture-agent {__version__} on {url} (open it in a browser to check the reader)", flush=True)
     try:
-        if sys.platform == "win32":
+        if args.service:
+            server.serve_forever()
+        elif sys.platform == "win32":
             from baas_capture_agent import tray
 
             threading.Thread(target=server.serve_forever, daemon=True).start()
