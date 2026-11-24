@@ -8,8 +8,9 @@ and whether the reader is ready.
 
 - Windows: no more terminal window flashing every 15 seconds while the check page is open. The driver
   check ran Windows' `pnputil` with a console of its own; it now runs without a window.
-- Windows: a reader with no driver now points straight to HID's U.are.U WBF driver (with a link) and says
-  to replug the reader after installing; Windows Update often doesn't offer a driver for the 4500.
+- Windows: a reader with no driver now points straight to HID's U.are.U WBF driver (with a link): unzip it,
+  run `setup\setup64.exe`, restart. Windows Update doesn't offer a Windows 10/11 driver for the 4500, and
+  HID's licence doesn't allow shipping their driver inside this setup.
 
 ## 0.2.5 (24 Nov 2026)
 

@@ -97,8 +97,8 @@ def windows_checks(devices: list[dict[str, str]], reader_connected: bool, route:
             Check(
                 "Driver",
                 False,
-                "The reader has no driver yet. Download HID's U.are.U WBF driver, install it, then unplug and "
-                "replug the reader. Windows Update > Optional updates sometimes lists it too.",
+                "The reader has no driver yet. Download HID's U.are.U WBF driver, unzip it, run setup\\setup64.exe, "
+                "then restart the PC.",
                 WBF_DRIVER,
                 "Get the WBF driver",
             )
