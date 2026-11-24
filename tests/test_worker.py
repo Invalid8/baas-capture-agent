@@ -40,6 +40,15 @@ class HotOnceReader(FakeReader):
         return super().capture(stop, timeout, on_finger)
 
 
+class HotOnceWaitingReader(HotOnceReader):
+    """Like the real reader: after the fresh start it waits for a finger, and a set stop means cancelled."""
+
+    def capture(self, stop, timeout, on_finger=None):
+        if MARK.exists() and stop.wait(0.3):
+            raise CaptureCancelled("Capture cancelled")
+        return super().capture(stop, timeout, on_finger)
+
+
 class AlwaysHotReader(FakeReader):
     def capture(self, stop, timeout, on_finger=None):
         raise NeedsFreshStart("heat timer")
@@ -89,6 +98,15 @@ class WorkerTest(unittest.TestCase):
         self.addCleanup(lambda: MARK.unlink(missing_ok=True))
         w = self.worker(HotOnceReader)
         capture = w.capture(threading.Event(), 5)
+        self.assertEqual(capture.device, "fake 4500")
+        self.assertEqual(w.fresh_starts, 1)
+
+    def test_the_capture_after_a_fresh_start_is_not_cancelled(self):
+        MARK.unlink(missing_ok=True)
+        self.addCleanup(lambda: MARK.unlink(missing_ok=True))
+        w = self.worker(HotOnceWaitingReader)
+        stop = threading.Event()
+        capture = w.capture(stop, 5)
         self.assertEqual(capture.device, "fake 4500")
         self.assertEqual(w.fresh_starts, 1)
 

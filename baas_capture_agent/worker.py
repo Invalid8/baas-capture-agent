@@ -153,4 +153,3 @@ class WorkerReader:
                     self._raise(answer[1], answer[2])
         finally:
             done.set()
-            stop.set()
