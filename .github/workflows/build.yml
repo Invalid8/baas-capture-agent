@@ -68,10 +68,10 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: out
-      - name: Stable names for the download buttons
+      - name: One file each, under the names the console's download buttons use
         run: |
-          cp out/windows/baas-capture-agent-setup-*.exe out/baas-capture-agent-setup.exe || true
-          cp out/deb/baas-capture-agent_*_all.deb out/baas-capture-agent.deb
+          mv out/windows/baas-capture-agent-setup-*.exe out/baas-capture-agent-setup.exe
+          mv out/deb/baas-capture-agent_*_all.deb out/baas-capture-agent.deb
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" out/windows/*.exe out/deb/*.deb out/baas-capture-agent*.exe out/baas-capture-agent.deb --repo "${GITHUB_REPOSITORY}" --title "${GITHUB_REF_NAME}" --notes "Capture agent ${GITHUB_REF_NAME}"
+        run: gh release create "${GITHUB_REF_NAME}" out/baas-capture-agent-setup.exe out/baas-capture-agent.deb out/windows/baas-probe.exe --repo "${GITHUB_REPOSITORY}" --title "${GITHUB_REF_NAME}" --notes "Capture agent ${GITHUB_REF_NAME}"

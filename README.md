@@ -42,7 +42,7 @@ Get the files from the [releases page](https://github.com/Invalid8/baas-capture-
 ## Linux
 
 ```bash
-sudo apt install ./baas-capture-agent_<version>_all.deb
+sudo apt install ./baas-capture-agent.deb
 ```
 
 `apt` pulls in libfprint. The package adds a udev rule so the logged-in user can
