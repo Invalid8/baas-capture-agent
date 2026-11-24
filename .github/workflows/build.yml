@@ -65,13 +65,19 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: out
+      - name: Release notes from CHANGELOG.md
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          { sed -n '3,5p' CHANGELOG.md; echo; awk -v h="## $v " 'index($0,h)==1{on=1;next} /^## /{on=0} on' CHANGELOG.md; } > notes.md
+          grep -q '^- ' notes.md || { echo "CHANGELOG.md has no section for $v"; exit 1; }
       - name: One file each, under the names the console's download buttons use
         run: |
           mv out/windows/baas-capture-agent-setup-*.exe out/baas-capture-agent-setup.exe
           mv out/deb/baas-capture-agent_*_all.deb out/baas-capture-agent.deb
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" out/baas-capture-agent-setup.exe out/baas-capture-agent.deb out/windows/baas-probe.exe --repo "${GITHUB_REPOSITORY}" --title "${GITHUB_REF_NAME}" --notes "Capture agent ${GITHUB_REF_NAME}"
+        run: gh release create "${GITHUB_REF_NAME}" out/baas-capture-agent-setup.exe out/baas-capture-agent.deb out/windows/baas-probe.exe --repo "${GITHUB_REPOSITORY}" --title "${GITHUB_REF_NAME}" --notes-file notes.md
