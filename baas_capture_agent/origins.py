@@ -4,11 +4,6 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import urlsplit
 
-BUILT_IN = (
-    "https://baas-app-kappa.vercel.app",
-    "https://baas-admin-ivory.vercel.app",
-)
-
 Prompt = Callable[[str], bool | None]
 
 
@@ -27,11 +22,11 @@ def well_formed(origin: str) -> bool:
 
 
 class OriginStore:
-    """Sites allowed to use the reader: built in, set on the command line, or approved once on this PC."""
+    """Sites allowed to use the reader: set on the command line, or approved once on this PC."""
 
     def __init__(self, path: Path, extra: tuple[str, ...] = (), prompt: Prompt | None = None):
         self._path = path
-        self._fixed = {normalise(o) for o in (*BUILT_IN, *extra) if o.strip()}
+        self._fixed = {normalise(o) for o in extra if o.strip()}
         self._prompt = prompt
         self._lock = threading.Lock()
         self._asking: dict[str, threading.Event] = {}
@@ -103,7 +98,7 @@ class OriginStore:
     def snapshot(self) -> dict:
         with self._lock:
             return {
-                "built_in": sorted(self._fixed),
+                "preset": sorted(self._fixed),
                 "approved": sorted(self._approved),
                 "waiting": sorted(self._pending),
             }

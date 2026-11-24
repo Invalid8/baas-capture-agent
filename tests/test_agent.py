@@ -25,8 +25,8 @@ from baas_capture_agent.reader import (
 from baas_capture_agent.server import CaptureAgent, make_server
 from tests.test_imaging import ridges
 
-KIOSK = "https://baas-app-kappa.vercel.app"
-CONSOLE = "https://baas-admin-ivory.vercel.app"
+KIOSK = "https://kiosk.example"
+CONSOLE = "https://console.example"
 TOKEN = "page-token"
 PRINT: Image = ridges(64, 64)
 BLANK = Image(64, 64, bytes([235] * 64 * 64))
@@ -104,7 +104,7 @@ class ServerTest(unittest.TestCase):
         folder = Path(tempfile.mkdtemp())
         self.events = EventHub()
         agent = CaptureAgent(reader, timeout, self.events, CaptureLog(folder / "capture.log"))
-        self.origins = OriginStore(folder / "sites.json", (), prompt)
+        self.origins = OriginStore(folder / "sites.json", (KIOSK,), prompt)
         server = make_server(agent, 0, self.origins, TOKEN)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.server_close)

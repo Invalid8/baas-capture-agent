@@ -131,7 +131,7 @@ function showSites(s) {
   const rows = [
     ...s.waiting.map((o) => { const el = li(`<span class="dot warn"></span><span class="grow">${esc(o)}<br><span class="faint">Asked to use the reader</span></span><button>Allow</button>`);
       el.querySelector("button").onclick = () => site("approve", o); return el; }),
-    ...s.built_in.map((o) => li(`<span class="dot ok"></span><span class="grow">${esc(o)}<br><span class="faint">Built in</span></span>`)),
+    ...s.preset.map((o) => li(`<span class="dot ok"></span><span class="grow">${esc(o)}<br><span class="faint">Set in the agent's settings</span></span>`)),
     ...s.approved.map((o) => { const el = li(`<span class="dot ok"></span><span class="grow">${esc(o)}<br><span class="faint">Allowed on this PC</span></span><button class="quiet">Remove</button>`);
       el.querySelector("button").onclick = () => site("forget", o); return el; }),
   ];

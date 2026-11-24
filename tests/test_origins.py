@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from baas_capture_agent.__main__ import parse_origins
-from baas_capture_agent.origins import BUILT_IN, OriginStore
+from baas_capture_agent.origins import OriginStore
 
 
 def store(prompt=None, extra=()):
@@ -13,10 +13,10 @@ def store(prompt=None, extra=()):
 
 
 class OriginStoreTest(unittest.TestCase):
-    def test_built_in_and_local_sites_never_ask(self):
+    def test_preset_and_local_sites_never_ask(self):
         asked = []
-        s = store(lambda o: asked.append(o))
-        for origin in (*BUILT_IN, "http://localhost:8080", "http://127.0.0.1:54321", "http://localhost", BUILT_IN[0] + "/"):
+        s = store(lambda o: asked.append(o), extra=("https://app.example",))
+        for origin in ("https://app.example", "https://app.example/", "http://localhost:8080", "http://127.0.0.1:54321", "http://localhost"):
             self.assertTrue(s.allow(origin), origin)
         self.assertEqual(asked, [])
 

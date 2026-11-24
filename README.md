@@ -8,8 +8,7 @@ for a fingerprint, it waits for a finger and returns the **image** as a PNG.
 Matching, enrolment and storage stay with your app; the agent never matches,
 keeps or sends prints anywhere.
 
-It was written for BAAS, a biometric ATM project, and works for any web app that
-needs a fingerprint image.
+It works for any web app that needs a fingerprint image.
 
 ## What it does
 
@@ -117,7 +116,6 @@ choose **Allow**.
 
 ## Which sites may use it
 
-- The BAAS kiosk and console are built in.
 - `http://localhost` and `http://127.0.0.1` on any port are always allowed, for
   development.
 - Any other site waits on the check page under **Sites that may use the reader**
