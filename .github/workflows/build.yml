@@ -42,6 +42,30 @@ jobs:
           choco install innosetup -y --no-progress
           $version = python -c "import baas_capture_agent; print(baas_capture_agent.__version__)"
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" packaging\windows\setup.iss
+      - name: Install the setup, check the agent runs as LocalSystem, install over it, uninstall
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem dist\baas-capture-agent-setup-*.exe | Select-Object -First 1).FullName
+          $quiet = "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
+          Start-Process $setup -ArgumentList $quiet -Wait
+          $status = Invoke-RestMethod http://127.0.0.1:7501/status
+          $status | ConvertTo-Json -Compress
+          $version = python -c "import baas_capture_agent; print(baas_capture_agent.__version__)"
+          if ($status.version -ne $version) { throw "agent answers as $($status.version), expected $version" }
+          $task = Get-ScheduledTask -TaskName "BAAS Capture Agent"
+          if ($task.Principal.UserId -ne "SYSTEM") { throw "the agent task does not run as LocalSystem" }
+          if ($task.Settings.DisallowStartIfOnBatteries -or $task.Settings.StopIfGoingOnBatteries) { throw "the agent task stops on battery" }
+          if ($task.Settings.ExecutionTimeLimit -ne "PT0S") { throw "the agent task has a time limit: $($task.Settings.ExecutionTimeLimit)" }
+          $owners = Get-CimInstance Win32_Process -Filter "Name='baas-capture-agent.exe'" | ForEach-Object { (Invoke-CimMethod -InputObject $_ -MethodName GetOwner).User }
+          "agent processes run as: $($owners -join ', ')"
+          if ("SYSTEM" -notin $owners) { throw "no agent process runs as LocalSystem" }
+          Get-ScheduledTask -TaskName "BAAS Capture Agent icon" | Out-Null
+          Start-Process $setup -ArgumentList $quiet -Wait
+          Invoke-RestMethod http://127.0.0.1:7501/status | Out-Null
+          Start-Process "${env:ProgramFiles}\BAAS Capture Agent\unins000.exe" -ArgumentList $quiet -Wait
+          Start-Sleep -Seconds 3
+          if (Get-ScheduledTask -TaskName "BAAS Capture Agent" -ErrorAction SilentlyContinue) { throw "the agent task is still there after uninstall" }
+          if (Get-Process baas-capture-agent -ErrorAction SilentlyContinue) { throw "an agent is still running after uninstall" }
       - uses: actions/upload-artifact@v4
         with:
           name: windows

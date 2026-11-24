@@ -4,6 +4,16 @@ Install: `baas-capture-agent-setup.exe` on Windows, `baas-capture-agent.deb` on 
 (`sudo apt install ./baas-capture-agent.deb`). After installing, http://127.0.0.1:7501 shows the version
 and whether the reader is ready.
 
+## 0.2.8 (24 Nov 2026)
+
+- Windows: the agent and the icon start on a laptop running on battery. The tasks were made with Windows'
+  defaults, which refuse to start on battery and stop a task after 3 days; the setup now registers them
+  with neither, and restarts the agent if it ever crashes.
+- Windows: the setup waits until the agent answers before it finishes, so the check page it opens is live,
+  and shows the icon straight away.
+- Every build now installs the real setup on a Windows machine, checks the agent answers as LocalSystem with
+  those task settings, installs over it and uninstalls it.
+
 ## 0.2.7 (24 Nov 2026)
 
 - Windows: the reader works with the WBF driver. The agent now runs as Windows' LocalSystem account, started
