@@ -1,7 +1,10 @@
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from baas_capture_agent import doctor
 from baas_capture_agent.doctor import device_node, parse_pnputil, plugged_readers, usb_readers, windows_checks
 
 PNPUTIL = """Microsoft PnP Utility
@@ -45,11 +48,11 @@ class WindowsDoctorTest(unittest.TestCase):
         self.assertFalse(checks[-1].ok)
         self.assertEqual(checks[-1].link_label, "Get the WBF driver")
 
-    def test_a_reader_without_any_driver_points_to_windows_update(self):
+    def test_a_reader_without_any_driver_points_to_the_wbf_driver(self):
         text = PNPUTIL.format("6&1A2B", "", "Problem").replace("Driver Name:                oem42.inf\n", "")
         checks = windows_checks(parse_pnputil(text), reader_connected=False)
         self.assertFalse(checks[-1].ok)
-        self.assertEqual(checks[-1].link, "ms-settings:windowsupdate-optionalupdates")
+        self.assertEqual(checks[-1].link, "https://www.hidglobal.com/media/4171")
 
     def test_driver_not_started(self):
         checks = windows_checks(windows(status="Problem"), reader_connected=False)
@@ -58,6 +61,15 @@ class WindowsDoctorTest(unittest.TestCase):
     def test_no_reader(self):
         [check] = windows_checks([], reader_connected=False)
         self.assertFalse(check.ok)
+
+
+class WindowsDriverQueryTest(unittest.TestCase):
+    def test_asking_windows_about_drivers_opens_no_console_window(self):
+        with mock.patch.object(subprocess, "CREATE_NO_WINDOW", 0x08000000, create=True), mock.patch.object(
+            doctor.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout="")
+        ) as run:
+            doctor._windows(False, None)
+        self.assertEqual(run.call_args.kwargs["creationflags"], 0x08000000)
 
 
 class LinuxDoctorTest(unittest.TestCase):

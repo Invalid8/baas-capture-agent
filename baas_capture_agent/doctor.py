@@ -9,7 +9,6 @@ UDEV_RULE = Path("/usr/lib/udev/rules.d/70-baas-capture-agent.rules")
 
 
 WBF_DRIVER = "https://www.hidglobal.com/media/4171"
-WINDOWS_UPDATE = "ms-settings:windowsupdate-optionalupdates"
 
 
 @dataclass(frozen=True)
@@ -98,10 +97,10 @@ def windows_checks(devices: list[dict[str, str]], reader_connected: bool, route:
             Check(
                 "Driver",
                 False,
-                "The reader has no driver yet. Open Windows Update > Optional updates, tick the fingerprint driver "
-                "and install it. If none is listed, get the U.are.U WBF driver from HID.",
-                WINDOWS_UPDATE,
-                "Open Windows Update",
+                "The reader has no driver yet. Download HID's U.are.U WBF driver, install it, then unplug and "
+                "replug the reader. Windows Update > Optional updates sometimes lists it too.",
+                WBF_DRIVER,
+                "Get the WBF driver",
             )
         )
         return checks
@@ -142,7 +141,12 @@ def windows_checks(devices: list[dict[str, str]], reader_connected: bool, route:
 def _windows(reader_connected: bool, route: str | None) -> list[Check]:
     try:
         text = subprocess.run(
-            ["pnputil", "/enum-devices", "/connected"], capture_output=True, text=True, timeout=15, check=False
+            ["pnputil", "/enum-devices", "/connected"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         ).stdout
     except (OSError, subprocess.TimeoutExpired):
         return [Check("Driver", reader_connected, "Couldn't ask Windows about its drivers (pnputil).")]

@@ -4,6 +4,13 @@ Install: `baas-capture-agent-setup.exe` on Windows, `baas-capture-agent.deb` on 
 (`sudo apt install ./baas-capture-agent.deb`). After installing, http://127.0.0.1:7501 shows the version
 and whether the reader is ready.
 
+## 0.2.6 (24 Nov 2026)
+
+- Windows: no more terminal window flashing every 15 seconds while the check page is open. The driver
+  check ran Windows' `pnputil` with a console of its own; it now runs without a window.
+- Windows: a reader with no driver now points straight to HID's U.are.U WBF driver (with a link) and says
+  to replug the reader after installing; Windows Update often doesn't offer a driver for the 4500.
+
 ## 0.2.5 (24 Nov 2026)
 
 - Each of the three ways to reach the reader (libfprint on Linux, Windows Biometric Framework, U.are.U SDK)
